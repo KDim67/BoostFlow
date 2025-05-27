@@ -1,14 +1,6 @@
-/**
- * Firebase Configuration
- * 
- * This file contains the Firebase configuration and initialization for the BoostFlow application.
- * It exports the Firebase app instance and various Firebase services that can be used throughout the app.
- */
-
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -23,6 +15,5 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app);
 
-export { app, auth, db, storage };
+export { app, auth, db };

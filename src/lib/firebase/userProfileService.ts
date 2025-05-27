@@ -1,20 +1,12 @@
-/**
- * User Profile Service
- * 
- * This file provides functionality for managing user profiles in Firestore.
- * It includes methods for creating, updating, and retrieving user profile data.
- */
-
 import { User } from 'firebase/auth';
 import { createDocument, getDocument, updateDocument } from './firestoreService';
 import { createLogger } from '../utils/logger';
+import { PlatformRole } from './usePlatformAuth';
 
-// Collection path for user profiles
 const USER_COLLECTION = 'users';
 
 const logger = createLogger('UserProfileService');
 
-// User profile interface
 export interface UserProfile {
   uid: string;
   email: string;
@@ -25,12 +17,12 @@ export interface UserProfile {
   company?: string;
   jobTitle?: string;
   phoneNumber?: string;
+  platformRole?: PlatformRole;
   settings?: UserSettings;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
-// User settings interface
 export interface UserSettings {
   theme?: 'light' | 'dark' | 'system';
   notifications?: {
@@ -41,12 +33,6 @@ export interface UserSettings {
   language?: string;
 }
 
-/**
- * Create a new user profile in Firestore
- * @param user Firebase Auth user object
- * @param additionalData Additional profile data
- * @returns Promise that resolves when the profile is created
- */
 export const createUserProfile = async (
   user: User,
   additionalData?: Partial<UserProfile>
@@ -55,12 +41,17 @@ export const createUserProfile = async (
     const userProfile: UserProfile = {
       uid: user.uid,
       email: user.email || '',
-      displayName: user.displayName || undefined,
-      photoURL: user.photoURL || undefined,
+      displayName: user.displayName || '',
+      photoURL: user.photoURL || '',
+      platformRole: 'user',
       ...additionalData
     };
 
-    await createDocument(USER_COLLECTION, userProfile, user.uid);
+    const cleanProfile = Object.fromEntries(
+      Object.entries(userProfile).filter(([_, value]) => value !== undefined)
+    ) as UserProfile;
+
+    await createDocument(USER_COLLECTION, cleanProfile, user.uid);
     logger.info(`User profile created for user: ${user.uid}`);
   } catch (error) {
     logger.error('Error creating user profile', error as Error, { uid: user.uid });
@@ -68,11 +59,6 @@ export const createUserProfile = async (
   }
 };
 
-/**
- * Get a user profile by user ID
- * @param uid User ID
- * @returns Promise resolving to user profile or null if not found
- */
 export const getUserProfile = async (uid: string): Promise<UserProfile | null> => {
   try {
     const userProfile = await getDocument(USER_COLLECTION, uid);
@@ -84,12 +70,6 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
   }
 };
 
-/**
- * Update a user profile
- * @param uid User ID
- * @param data Updated profile data
- * @returns Promise that resolves when the profile is updated
- */
 export const updateUserProfile = async (
   uid: string,
   data: Partial<UserProfile>
@@ -103,33 +83,28 @@ export const updateUserProfile = async (
   }
 };
 
-/**
- * Create or update a user profile based on the Firebase Auth user
- * This is useful after a user signs in or registers
- * @param user Firebase Auth user object
- * @param additionalData Additional profile data
- * @returns Promise that resolves when the profile is created or updated
- */
 export const syncUserProfile = async (
   user: User,
   additionalData?: Partial<UserProfile>
 ): Promise<void> => {
   try {
-    // Check if profile exists
     const existingProfile = await getUserProfile(user.uid);
     
     if (existingProfile) {
-      // Update existing profile
       const updates: Partial<UserProfile> = {
         email: user.email || existingProfile.email,
         displayName: user.displayName || existingProfile.displayName,
-        photoURL: user.photoURL || existingProfile.photoURL,
+        photoURL: user.photoURL || existingProfile.photoURL || '',
+        platformRole: existingProfile.platformRole || 'user',
         ...additionalData
       };
       
-      await updateUserProfile(user.uid, updates);
+      const cleanUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([_, value]) => value !== undefined)
+      ) as Partial<UserProfile>;
+      
+      await updateUserProfile(user.uid, cleanUpdates);
     } else {
-      // Create new profile
       await createUserProfile(user, additionalData);
     }
   } catch (error) {

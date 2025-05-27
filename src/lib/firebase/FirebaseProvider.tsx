@@ -1,27 +1,14 @@
-/**
- * Firebase Provider Component
- * 
- * This component provides Firebase context to the entire application.
- * It initializes Firebase and makes all Firebase services available to child components.
- */
+'use client';
 
-import { ReactNode } from 'react';
 import { AuthProvider } from './useAuth';
+import { OrganizationProvider } from './OrganizationProvider';
 
-interface FirebaseProviderProps {
-  children: ReactNode;
-}
-
-/**
- * Firebase Provider Component
- * Wraps the application with Firebase context providers
- * @param children Child components
- * @returns Firebase Provider component
- */
-export function FirebaseProvider({ children }: FirebaseProviderProps) {
+export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
-      {children}
+      <OrganizationProvider>
+        {children}
+      </OrganizationProvider>
     </AuthProvider>
   );
 }

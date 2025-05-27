@@ -1,11 +1,3 @@
-/**
- * Firebase Authentication Service
- * 
- * This file provides authentication-related functionality using Firebase Auth.
- * It includes methods for user registration, login, logout, password reset, and
- * getting the current user state.
- */
-
 import { 
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -18,13 +10,6 @@ import {
 } from 'firebase/auth';
 import { auth } from './config';
 
-/**
- * User registration with email and password
- * @param email User's email address
- * @param password User's password
- * @param displayName User's display name
- * @returns Promise resolving to UserCredential
- */
 export const registerUser = async (
   email: string, 
   password: string, 
@@ -33,7 +18,6 @@ export const registerUser = async (
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     
-    // Update profile with display name if provided
     if (displayName && userCredential.user) {
       await updateProfile(userCredential.user, { displayName });
     }
@@ -45,12 +29,6 @@ export const registerUser = async (
   }
 };
 
-/**
- * User login with email and password
- * @param email User's email address
- * @param password User's password
- * @returns Promise resolving to UserCredential
- */
 export const loginUser = async (
   email: string, 
   password: string
@@ -63,10 +41,6 @@ export const loginUser = async (
   }
 };
 
-/**
- * User logout
- * @returns Promise that resolves when logout is complete
- */
 export const logoutUser = async (): Promise<void> => {
   try {
     return await signOut(auth);
@@ -76,11 +50,6 @@ export const logoutUser = async (): Promise<void> => {
   }
 };
 
-/**
- * Send password reset email
- * @param email User's email address
- * @returns Promise that resolves when the reset email is sent
- */
 export const resetPassword = async (email: string): Promise<void> => {
   try {
     return await sendPasswordResetEmail(auth, email);
@@ -90,19 +59,10 @@ export const resetPassword = async (email: string): Promise<void> => {
   }
 };
 
-/**
- * Get the current authenticated user
- * @returns The current user or null if not authenticated
- */
 export const getCurrentUser = (): User | null => {
   return auth.currentUser;
 };
 
-/**
- * Subscribe to auth state changes
- * @param callback Function to call when auth state changes
- * @returns Unsubscribe function
- */
 export const subscribeToAuthChanges = (
   callback: (user: User | null) => void
 ) => {

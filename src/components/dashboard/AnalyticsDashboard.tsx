@@ -67,22 +67,21 @@ interface Task {
 }
 
 interface AnalyticsDashboardProps {
+  organizationId?: string;
 }
 
-const AnalyticsDashboard = ({}: AnalyticsDashboardProps) => {
+const AnalyticsDashboard = ({ organizationId }: AnalyticsDashboardProps) => {
   const [timeRange, setTimeRange] = useState('month'); // 'week', 'month', 'quarter', 'year'
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
 
-  // Derived state for analytics
   const [projectProgressData, setProjectProgressData] = useState<any>(null);
   const [taskCompletionData, setTaskCompletionData] = useState<any>(null);
   const [teamProductivityData, setTeamProductivityData] = useState<any>(null);
   const [timeSpentData, setTimeSpentData] = useState<any>(null);
   
-  // Analytics metrics
   const [projectCompletion, setProjectCompletion] = useState(0);
   const [projectCompletionChange, setProjectCompletionChange] = useState(0);
   const [taskCompletionRate, setTaskCompletionRate] = useState(0);
@@ -124,15 +123,20 @@ const AnalyticsDashboard = ({}: AnalyticsDashboardProps) => {
         setIsLoading(true);
         const dateRange = getDateRange();
         
-        const projectsData = await queryDocuments('projects', [
-          where('createdBy', '==', user.uid)
-        ]);
+        const projectFilters = organizationId
+          ? [where('organizationId', '==', organizationId)]
+          : [where('createdBy', '==', user.uid)];
+        
+        const projectsData = await queryDocuments('projects', projectFilters);
         setProjects(projectsData as Project[]);
         
-        const tasksData = await queryDocuments('tasks', [
-          where('createdBy', '==', user.uid)
-        ]);
-        setTasks(tasksData as Task[]);
+        const projectIds = projectsData.map(project => project.id);
+        
+        const tasksFilters = organizationId && projectIds.length > 0
+          ? [where('projectId', 'in', projectIds.slice(0, 10))]
+          : [where('createdBy', '==', user.uid)];
+        
+        const tasksData = await queryDocuments('tasks', tasksFilters);
 
         processAnalyticsData(projectsData as Project[], tasksData as Task[], dateRange);
       } catch (error) {
@@ -160,11 +164,10 @@ const AnalyticsDashboard = ({}: AnalyticsDashboardProps) => {
     const totalHoursTracked = tasks.reduce((sum, task) => sum + (task.hoursTracked || 0), 0);
     const avgTime = completedTasks > 0 ? (totalHoursTracked / completedTasks).toFixed(1) : '0';
     setAvgTimePerTask(parseFloat(avgTime));
-    setAvgTimePerTaskChange(0.5); // For now, hardcoded change
+    setAvgTimePerTaskChange(0.5);
 
-    // Calculate team efficiency (simplified metric)
-    setTeamEfficiency(82); // For now, hardcoded
-    setTeamEfficiencyChange(5); // For now, hardcoded change
+    setTeamEfficiency(82);
+    setTeamEfficiencyChange(5);
 
     processProjectProgressData(projects);
     
@@ -183,10 +186,10 @@ const AnalyticsDashboard = ({}: AnalyticsDashboardProps) => {
     let labels: string[] = [];
     if (timeRange === 'week') {
       const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      const today = new Date().getDay(); // 0 = Sunday, 1 = Monday, ...
+      const today = new Date().getDay();
       for (let i = 6; i >= 0; i--) {
-        const dayIndex = (today - i + 7) % 7; // Ensure positive index
-        labels.push(days[dayIndex === 0 ? 6 : dayIndex - 1]); // Adjust for days array (Mon = 0)
+        const dayIndex = (today - i + 7) % 7;
+        labels.push(days[dayIndex === 0 ? 6 : dayIndex - 1]);
       }
     } else if (timeRange === 'month') {
       labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
@@ -194,7 +197,7 @@ const AnalyticsDashboard = ({}: AnalyticsDashboardProps) => {
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const currentMonth = new Date().getMonth();
       for (let i = 2; i >= 0; i--) {
-        const monthIndex = (currentMonth - i + 12) % 12; // Ensure positive index
+        const monthIndex = (currentMonth - i + 12) % 12;
         labels.push(monthNames[monthIndex]);
       }
     } else if (timeRange === 'year') {

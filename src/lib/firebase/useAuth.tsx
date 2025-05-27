@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User } from 'firebase/auth';
+import { User, UserCredential } from 'firebase/auth';
 import {
   registerUser,
   loginUser,
@@ -10,13 +10,14 @@ import {
   getCurrentUser,
   subscribeToAuthChanges
 } from './authService';
+import { syncUserProfile } from './userProfileService';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   error: string | null;
-  signup: (email: string, password: string, displayName?: string) => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string, displayName?: string) => Promise<UserCredential>;
+  login: (email: string, password: string) => Promise<UserCredential>;
   logout: () => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
   clearError: () => void;
@@ -30,13 +31,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Subscribe to auth state changes
     const unsubscribe = subscribeToAuthChanges((user) => {
       setUser(user);
       setLoading(false);
     });
 
-    // Cleanup subscription on unmount
     return () => unsubscribe();
   }, []);
 
@@ -44,7 +43,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true);
       setError(null);
-      await registerUser(email, password, displayName);
+      const userCredential = await registerUser(email, password, displayName);
+      
+      if (userCredential.user) {
+        await syncUserProfile(userCredential.user);
+      }
+      
+      return userCredential;
     } catch (err: any) {
       setError(err.message || 'Failed to create an account');
       throw err;
@@ -57,7 +62,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true);
       setError(null);
-      await loginUser(email, password);
+      const userCredential = await loginUser(email, password);
+      
+      if (userCredential.user) {
+        await syncUserProfile(userCredential.user);
+      }
+      
+      return userCredential;
     } catch (err: any) {
       setError(err.message || 'Failed to log in');
       throw err;

@@ -2,13 +2,25 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/firebase/useAuth';
+import { usePlatformAuth } from '@/lib/firebase/usePlatformAuth';
+import OrganizationSelector from './navigation/OrganizationSelector';
 import Image from 'next/image';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const pathname = usePathname();
   const { user, logout } = useAuth();
+  const [showOrgSelector, setShowOrgSelector] = useState(false);
+  
+  const { isSuperAdmin } = usePlatformAuth();
+
+  useEffect(() => {
+    setShowOrgSelector(pathname.includes('/dashboard') || pathname.includes('/organizations'));
+  }, [pathname]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -34,32 +46,46 @@ const Navbar = () => {
             <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">BoostFlow</span>
           </Link>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center space-x-8">
-            <Link href="/" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors">
-              Home
-            </Link>
-            <Link href="/features" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors">
-              Features
-            </Link>
-            <Link href="/pricing" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors">
-              Pricing
-            </Link>
-            <Link href="/testimonials" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors">
-              Testimonials
-            </Link>
-            <Link href="/contact" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors">
-              Contact
-            </Link>
-          </nav>
+          {/* Navigation Links */}
+          <div className="hidden md:flex items-center space-x-8">
+            {showOrgSelector && user ? (
+              <OrganizationSelector />
+            ) : (
+              <>
+                <Link href="/" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors">
+                  Home
+                </Link>
+                <Link href="/features" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors">
+                  Features
+                </Link>
+                <Link href="/pricing" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors">
+                  Pricing
+                </Link>
+                <Link href="/testimonials" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors">
+                  Testimonials
+                </Link>
+                <Link href="/demo" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors">
+                  Demo
+                </Link>
+                <Link href="/contact" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors">
+                  Contact
+                </Link>
+              </>
+            )}
+          </div>
 
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center space-x-4">
             {user ? (
               <>
-                <Link href="/dashboard" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors">
-                  Dashboard
+                <Link href="/organizations" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors">
+                  Workspace
                 </Link>
+                {isSuperAdmin && (
+                  <Link href="/platform-admin" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors">
+                    Admin Panel
+                  </Link>
+                )}
                 <button 
                   onClick={() => logout()}
                   className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
@@ -152,12 +178,21 @@ const Navbar = () => {
               {user ? (
                 <>
                   <Link 
-                    href="/dashboard" 
+                    href="/organizations" 
                     className="block px-3 py-2 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
-                    Dashboard
+                    Workspace
                   </Link>
+                  {isSuperAdmin && (
+                    <Link 
+                      href="/platform-admin" 
+                      className="block px-3 py-2 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Admin Panel
+                    </Link>
+                  )}
                   <button 
                     onClick={() => {
                       logout();

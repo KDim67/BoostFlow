@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import LeadCapturePopup from "@/components/LeadCapturePopup";
 import { FirebaseProvider } from "@/lib/firebase/FirebaseProvider";
 
 const geistSans = Geist({
@@ -37,12 +36,6 @@ export default function RootLayout({
             {children}
           </main>
           <Footer />
-          <LeadCapturePopup 
-            title="Get 20% Off Your First Month"
-            description="Subscribe to our newsletter and get exclusive offers, tips, and resources."
-            delay={10000}
-            exitIntent={true}
-          />
         </FirebaseProvider>
       </body>
     </html>

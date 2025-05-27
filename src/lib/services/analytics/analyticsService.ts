@@ -1,10 +1,3 @@
-/**
- * Analytics Service
- * 
- * This service provides functionality for data analysis, visualization, and
- * predictive modeling within the BoostFlow application.
- */
-
 export interface AnalyticsDataPoint {
   timestamp: Date;
   value: number;
@@ -74,19 +67,13 @@ export interface AnalyticsPrediction {
   expiresAt?: Date;
 }
 
-/**
- * Fetches analytics data for a specific metric
- */
 export const fetchAnalyticsData = async (
   metric: string,
   timeRange: { start: Date; end: Date },
   filters: Record<string, any> = {}
 ): Promise<AnalyticsDataPoint[]> => {
-  // This would fetch from a database or analytics service
-  // For now, we'll simulate the data
   console.log(`Fetching analytics data for ${metric}`, { timeRange, filters });
   
-  // Generate mock data points
   const dataPoints: AnalyticsDataPoint[] = [];
   const days = Math.ceil((timeRange.end.getTime() - timeRange.start.getTime()) / (1000 * 60 * 60 * 24));
   
@@ -94,17 +81,15 @@ export const fetchAnalyticsData = async (
     const date = new Date(timeRange.start);
     date.setDate(date.getDate() + i);
     
-    // Generate a somewhat realistic value based on the metric
     let value = 0;
     switch (metric) {
       case 'task_completion':
-        value = Math.floor(Math.random() * 10) + 5; // 5-15 tasks per day
+        value = Math.floor(Math.random() * 10) + 5;
         break;
       case 'active_users':
-        value = Math.floor(Math.random() * 20) + 30; // 30-50 users per day
+        value = Math.floor(Math.random() * 20) + 30;
         break;
       case 'project_progress':
-        // Simulate gradual progress increase
         value = Math.min(100, Math.floor((i / days) * 100) + Math.floor(Math.random() * 5));
         break;
       default:
@@ -121,12 +106,7 @@ export const fetchAnalyticsData = async (
   return dataPoints;
 };
 
-/**
- * Creates a new analytics dataset
- */
 export const createAnalyticsDataset = async (dataset: Omit<AnalyticsDataset, 'id' | 'createdAt' | 'updatedAt'>): Promise<AnalyticsDataset> => {
-  // This would connect to a database
-  // For now, we'll simulate the creation
   const newDataset: AnalyticsDataset = {
     ...dataset,
     id: `dataset-${Date.now()}`,
@@ -134,27 +114,20 @@ export const createAnalyticsDataset = async (dataset: Omit<AnalyticsDataset, 'id
     updatedAt: new Date()
   };
   
-  // Save to database (simulated)
   console.log('Created analytics dataset:', newDataset);
   
   return newDataset;
 };
 
-/**
- * Generates a report based on analytics data
- */
 export const generateAnalyticsReport = async (report: Omit<AnalyticsReport, 'id' | 'createdAt' | 'updatedAt' | 'insights'>): Promise<AnalyticsReport> => {
-  // This would connect to a database and analytics service
-  // For now, we'll simulate the report generation
   const newReport: AnalyticsReport = {
     ...report,
     id: `report-${Date.now()}`,
     createdAt: new Date(),
     updatedAt: new Date(),
-    insights: [] // Will be populated below
+    insights: []
   };
   
-  // Simulate generating insights
   newReport.insights = [
     {
       id: `insight-${Date.now()}-1`,
@@ -176,56 +149,42 @@ export const generateAnalyticsReport = async (report: Omit<AnalyticsReport, 'id'
     }
   ];
   
-  // Save to database (simulated)
   console.log('Generated analytics report:', newReport);
   
   return newReport;
 };
 
-/**
- * Makes a prediction based on historical data
- */
 export const makePrediction = async (
   type: AnalyticsPrediction['type'],
   datasetId: string,
   parameters: Record<string, any> = {}
 ): Promise<AnalyticsPrediction> => {
-  // This would use ML models to make predictions
   console.log(`Making ${type} prediction for dataset ${datasetId}`, parameters);
   
-  // In a real implementation, this would use a machine learning service
-  // to train and run prediction models on the dataset
-  
-  // Validate parameters
   if (!datasetId) {
     throw new Error('Dataset ID is required for prediction');
   }
   
-  // Apply different prediction logic based on the type
   let result: Record<string, any>;
   let accuracy: number;
   
   switch (type) {
     case 'forecast':
-      // Time series forecasting
       result = await generateForecast(datasetId, parameters);
       accuracy = 0.85;
       break;
       
     case 'classification':
-      // Classification prediction
       result = await performClassification(datasetId, parameters);
       accuracy = 0.92;
       break;
       
     case 'regression':
-      // Regression prediction
       result = await performRegression(datasetId, parameters);
       accuracy = 0.88;
       break;
       
     case 'custom':
-      // Custom prediction logic
       result = await performCustomPrediction(datasetId, parameters);
       accuracy = 0.80;
       break;
@@ -234,7 +193,6 @@ export const makePrediction = async (
       throw new Error(`Unsupported prediction type: ${type}`);
   }
   
-  // Create the prediction object
   const prediction: AnalyticsPrediction = {
     id: `prediction-${Date.now()}`,
     type,
@@ -249,32 +207,24 @@ export const makePrediction = async (
     expiresAt: parameters.expiresAt ? new Date(parameters.expiresAt) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Default 30 days
   };
   
-  // In a real implementation, this would be saved to a database
   console.log('Created prediction:', prediction);
   
   return prediction;
 };
 
-/**
- * Generates a time series forecast
- */
 async function generateForecast(datasetId: string, parameters: Record<string, any>): Promise<Record<string, any>> {
-  // In a real implementation, this would use a time series forecasting algorithm
   console.log(`Generating forecast for dataset ${datasetId}`);
   
-  // Get forecast parameters
-  const periods = parameters.periods || 12; // Default to 12 periods ahead
+  const periods = parameters.periods || 12;
   const interval = parameters.interval || 'month';
   const includeConfidenceIntervals = parameters.includeConfidenceIntervals !== false;
   
-  // Generate forecast data points
   const forecastPoints = [];
   const now = new Date();
   
   for (let i = 1; i <= periods; i++) {
     const date = new Date(now);
     
-    // Adjust date based on interval
     switch (interval) {
       case 'day':
         date.setDate(date.getDate() + i);
@@ -293,20 +243,18 @@ async function generateForecast(datasetId: string, parameters: Record<string, an
         break;
     }
     
-    // Generate a forecast value with some randomness but following a trend
-    const baseValue = 100 + (i * 10); // Increasing trend
-    const randomFactor = (Math.random() - 0.5) * 20; // Random variation
+    const baseValue = 100 + (i * 10);
+    const randomFactor = (Math.random() - 0.5) * 20;
     const forecastValue = baseValue + randomFactor;
     
-    // Add confidence intervals if requested
     const point: Record<string, any> = {
       date: date.toISOString(),
       value: forecastValue
     };
     
     if (includeConfidenceIntervals) {
-      point.lowerBound = forecastValue - (forecastValue * 0.1); // 10% below
-      point.upperBound = forecastValue + (forecastValue * 0.1); // 10% above
+      point.lowerBound = forecastValue - (forecastValue * 0.1);
+      point.upperBound = forecastValue + (forecastValue * 0.1);
     }
     
     forecastPoints.push(point);
@@ -324,14 +272,9 @@ async function generateForecast(datasetId: string, parameters: Record<string, an
   };
 }
 
-/**
- * Performs classification on a dataset
- */
 async function performClassification(datasetId: string, parameters: Record<string, any>): Promise<Record<string, any>> {
-  // In a real implementation, this would use a classification algorithm
   console.log(`Performing classification for dataset ${datasetId}`);
   
-  // Get classification parameters
   const features = parameters.features || [];
   const targetClass = parameters.targetClass;
   
@@ -339,29 +282,26 @@ async function performClassification(datasetId: string, parameters: Record<strin
     throw new Error('Target class is required for classification');
   }
   
-  // Generate classification results
   const classes = parameters.possibleClasses || ['Class A', 'Class B', 'Class C'];
   const probabilities: Record<string, number> = {};
   
-  // Assign probabilities to each class
   let remainingProbability = 1.0;
   for (let i = 0; i < classes.length - 1; i++) {
     const className = classes[i];
-    const probability = i === 0 ? 0.7 : remainingProbability * Math.random(); // First class has highest probability
+    const probability = i === 0 ? 0.7 : remainingProbability * Math.random();
     probabilities[className] = Number(probability.toFixed(4));
     remainingProbability -= probability;
   }
   
-  // Assign remaining probability to the last class
   probabilities[classes[classes.length - 1]] = Number(remainingProbability.toFixed(4));
   
   return {
-    predictedClass: classes[0], // The class with highest probability
+    predictedClass: classes[0],
     classProbabilities: probabilities,
     metadata: {
       algorithm: parameters.algorithm || 'RandomForest',
       featureImportance: features.reduce((acc: Record<string, number>, feature: string, index: number) => {
-        acc[feature] = Number((Math.random() * 0.5 + 0.5).toFixed(4)); // Random importance between 0.5 and 1.0
+        acc[feature] = Number((Math.random() * 0.5 + 0.5).toFixed(4));
         return acc;
       }, {}),
       confusionMatrix: generateConfusionMatrix(classes)
@@ -369,27 +309,21 @@ async function performClassification(datasetId: string, parameters: Record<strin
   };
 }
 
-/**
- * Generates a confusion matrix for classification results
- */
 function generateConfusionMatrix(classes: string[]): number[][] {
   const matrix: number[][] = [];
   
   for (let i = 0; i < classes.length; i++) {
     const row: number[] = [];
-    let remainingCount = 100; // Total 100 samples
+    let remainingCount = 100;
     
     for (let j = 0; j < classes.length; j++) {
       if (i === j) {
-        // Diagonal elements (correct predictions) have higher values
-        const correctCount = Math.floor(Math.random() * 30) + 60; // 60-90 correct predictions
+        const correctCount = Math.floor(Math.random() * 30) + 60;
         row.push(correctCount);
         remainingCount -= correctCount;
       } else if (j === classes.length - 1) {
-        // Last element gets the remaining count
         row.push(remainingCount);
       } else {
-        // Off-diagonal elements (incorrect predictions) have lower values
         const incorrectCount = Math.floor(Math.random() * remainingCount);
         row.push(incorrectCount);
         remainingCount -= incorrectCount;
@@ -402,14 +336,9 @@ function generateConfusionMatrix(classes: string[]): number[][] {
   return matrix;
 }
 
-/**
- * Performs regression on a dataset
- */
 async function performRegression(datasetId: string, parameters: Record<string, any>): Promise<Record<string, any>> {
-  // In a real implementation, this would use a regression algorithm
   console.log(`Performing regression for dataset ${datasetId}`);
   
-  // Get regression parameters
   const features = parameters.features || [];
   const targetVariable = parameters.targetVariable;
   
@@ -417,28 +346,25 @@ async function performRegression(datasetId: string, parameters: Record<string, a
     throw new Error('Target variable is required for regression');
   }
   
-  // Generate regression results
   const coefficients: Record<string, number> = {};
   
-  // Assign coefficients to each feature
   features.forEach((feature: string) => {
-    coefficients[feature] = Number((Math.random() * 2 - 1).toFixed(4)); // Random coefficient between -1 and 1
+    coefficients[feature] = Number((Math.random() * 2 - 1).toFixed(4));
   });
   
-  // Add intercept
-  coefficients['intercept'] = Number((Math.random() * 10).toFixed(4)); // Random intercept between 0 and 10
+  coefficients['intercept'] = Number((Math.random() * 10).toFixed(4));
   
   return {
     coefficients,
     metrics: {
-      r2: Number((Math.random() * 0.3 + 0.7).toFixed(4)), // R² between 0.7 and 1.0
-      mse: Number((Math.random() * 10).toFixed(4)), // Mean Squared Error
-      mae: Number((Math.random() * 5).toFixed(4)) // Mean Absolute Error
+      r2: Number((Math.random() * 0.3 + 0.7).toFixed(4)),
+      mse: Number((Math.random() * 10).toFixed(4)),
+      mae: Number((Math.random() * 5).toFixed(4))
     },
     metadata: {
       algorithm: parameters.algorithm || 'LinearRegression',
       featureImportance: features.reduce((acc: Record<string, number>, feature: string) => {
-        acc[feature] = Number((Math.random()).toFixed(4)); // Random importance between 0 and 1
+        acc[feature] = Number((Math.random()).toFixed(4));
         return acc;
       }, {}),
       residualAnalysis: {
@@ -449,57 +375,42 @@ async function performRegression(datasetId: string, parameters: Record<string, a
   };
 }
 
-/**
- * Performs a custom prediction
- */
 async function performCustomPrediction(datasetId: string, parameters: Record<string, any>): Promise<Record<string, any>> {
-  // In a real implementation, this would use a custom algorithm or ensemble method
   console.log(`Performing custom prediction for dataset ${datasetId}`);
   
-  // Get custom parameters
   const algorithm = parameters.algorithm || 'custom';
   const customLogic = parameters.customLogic || {};
   
-  // Generate custom prediction results
   return {
     prediction: Math.random() * 100,
     confidence: Math.random(),
     metadata: {
       algorithm,
       customParameters: customLogic,
-      processingTime: Math.floor(Math.random() * 1000) + 500 // 500-1500ms
+      processingTime: Math.floor(Math.random() * 1000) + 500
     }
   };
 }
 
-/**
- * Generates AI-powered insights from analytics data
- */
 export const generateInsights = async (datasetId: string, options: Record<string, any> = {}): Promise<AnalyticsInsight[]> => {
-  // In a real implementation, this would use AI/ML to analyze data and generate insights
   console.log(`Generating insights for dataset ${datasetId}`);
   
-  // Get insight generation options
   const insightTypes = options.insightTypes || ['trend', 'anomaly', 'correlation', 'forecast'];
   const maxInsights = options.maxInsights || 5;
   
-  // Generate insights based on the requested types
   const insights: AnalyticsInsight[] = [];
   
-  // Generate a random number of insights up to maxInsights
   const numInsights = Math.floor(Math.random() * maxInsights) + 1;
   
   for (let i = 0; i < numInsights; i++) {
-    // Select a random insight type from the requested types
     const insightType = insightTypes[Math.floor(Math.random() * insightTypes.length)] as AnalyticsInsight['type'];
     
-    // Generate an insight based on the type
     const insight: AnalyticsInsight = {
       id: `insight-${Date.now()}-${i}`,
       type: insightType,
       title: generateInsightTitle(insightType),
       description: generateInsightDescription(insightType),
-      confidence: Number((Math.random() * 0.3 + 0.7).toFixed(2)), // 0.7-1.0 confidence
+      confidence: Number((Math.random() * 0.3 + 0.7).toFixed(2)),
       metadata: generateInsightMetadata(insightType),
       generatedAt: new Date()
     };
@@ -510,9 +421,6 @@ export const generateInsights = async (datasetId: string, options: Record<string
   return insights;
 };
 
-/**
- * Generates a title for an insight based on its type
- */
 function generateInsightTitle(insightType: AnalyticsInsight['type']): string {
   switch (insightType) {
     case 'trend':
@@ -535,9 +443,6 @@ function generateInsightTitle(insightType: AnalyticsInsight['type']): string {
   }
 }
 
-/**
- * Generates a description for an insight based on its type
- */
 function generateInsightDescription(insightType: AnalyticsInsight['type']): string {
   switch (insightType) {
     case 'trend':
@@ -560,9 +465,6 @@ function generateInsightDescription(insightType: AnalyticsInsight['type']): stri
   }
 }
 
-/**
- * Generates metadata for an insight based on its type
- */
 function generateInsightMetadata(insightType: AnalyticsInsight['type']): Record<string, any> {
   switch (insightType) {
     case 'trend':

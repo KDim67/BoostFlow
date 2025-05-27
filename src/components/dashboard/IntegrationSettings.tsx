@@ -35,17 +35,14 @@ export default function IntegrationSettings({
   });
   const [showNewIntegrationForm, setShowNewIntegrationForm] = useState(false);
 
-  // Load integration if integrationId is provided
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
         
-        // Load available providers
         const providers = await getAvailableProviders();
         setAvailableProviders(providers);
         
-        // Load integration if ID is provided
         if (integrationId) {
           const loadedIntegration = await getIntegration(integrationId);
           setIntegration(loadedIntegration);
@@ -63,7 +60,6 @@ export default function IntegrationSettings({
     loadData();
   }, [integrationId]);
 
-  // Toggle integration active state
   const toggleIntegrationActive = async () => {
     if (!integration) return;
 
@@ -78,7 +74,6 @@ export default function IntegrationSettings({
     }
   };
 
-  // Sync integration with external service
   const handleSync = async () => {
     if (!integration) return;
 
@@ -91,7 +86,6 @@ export default function IntegrationSettings({
       if (result.success) {
         setSyncMessage(`Successfully synced! ${result.syncedItems} items processed.`);
         
-        // Refresh integration data
         const refreshedIntegration = await getIntegration(integration.id);
         setIntegration(refreshedIntegration);
       } else {
@@ -103,14 +97,12 @@ export default function IntegrationSettings({
     } finally {
       setIsSyncing(false);
       
-      // Clear sync message after 5 seconds
       setTimeout(() => {
         setSyncMessage(null);
       }, 5000);
     }
   };
 
-  // Create new integration
   const handleCreateIntegration = async () => {
     try {
       if (!newIntegration.name || !newIntegration.provider) {
@@ -140,7 +132,6 @@ export default function IntegrationSettings({
     return <div className="p-4 text-red-500">{error}</div>;
   }
 
-  // Show new integration form if no integration exists or user wants to create a new one
   if (showNewIntegrationForm || (!integration && !integrationId)) {
     return (
       <div className="bg-white dark:bg-gray-900 shadow rounded-lg p-6">
