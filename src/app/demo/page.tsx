@@ -3,7 +3,7 @@
 import Link from 'next/link';
 
 export default function DemoPage() {
-  const figmaProtoUrl = "https://embed.figma.com/proto/hP9qZi5dsNPQP38tCmx2rm/BoostFlow?node-id=7-267&p=f&scaling=scale-down&content-scaling=fixed&page-id=0%3A1&starting-point-node-id=7%3A267&embed-host=share";
+  const figmaProtoUrl = "https://embed.figma.com/proto/hP9qZi5dsNPQP38tCmx2rm/BoostFlow?node-id=7-267&content-scaling=fit&hide-ui=1&embed-host=share";
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -30,7 +30,7 @@ export default function DemoPage() {
                 <div className="relative w-full" style={{ paddingTop: '177.78%' }}>
                   <iframe 
                     className="absolute top-0 left-0 w-full h-full border-0 rounded-lg"
-                    style={{ border: '1px solid rgba(0, 0, 0, 0.1)' }}
+                    style={{ border: '0px solid rgba(0, 0, 0, 0.1)' }}
                     width="800" 
                     height="450" 
                     src={figmaProtoUrl}
@@ -45,7 +45,8 @@ export default function DemoPage() {
           {/* Prototype information text */}
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-500 dark:text-gray-400 mx-auto max-w-2xl">
-              This is an early-stage prototype. The final version may include additional features and refinements based on user feedback.
+              This is an early-stage prototype. <br />
+              The final version may include additional features and refinements based on user feedback.
             </p>
           </div>
         </div>
