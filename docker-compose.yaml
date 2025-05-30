@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  react-app:
+    build:
+      context: .
+      args:
+        REACT_APP_FIREBASE_API_KEY: "${REACT_APP_FIREBASE_API_KEY}"
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+
