@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 
 export const metadata = {
   title: 'Privacy Policy | BoostFlow',
@@ -7,19 +8,25 @@ export const metadata = {
 
 const PrivacyPolicyPage = () => {
   return (
-    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 bg-gradient-to-br from-blue-50/50 to-purple-50/50 dark:from-blue-950/30 dark:to-purple-950/30 min-h-screen">
-      <div className="max-w-4xl mx-auto">
-        {/* Header Section with Gradient Background */}
-        <div className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 rounded-xl p-8 mb-10 shadow-md">
-          <h1 className="text-4xl font-bold mb-4">
-            <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Privacy Policy</span>
-          </h1>
-          <p className="text-gray-600 dark:text-gray-300">
-            Last updated: {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-          </p>
+    <div className="flex flex-col min-h-screen">
+      {/* Hero Section */}
+      <section className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 py-20 md:py-28">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-4xl mx-auto text-center">
+            <h1 className="text-4xl md:text-5xl font-bold mb-4">
+              <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Privacy Policy</span>
+            </h1>
+            <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 mb-6">
+              Last updated: {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+            </p>
+          </div>
         </div>
+      </section>
         
-        <div className="prose prose-blue dark:prose-invert max-w-none bg-white dark:bg-gray-900 rounded-xl shadow-md p-8">
+      {/* Main Content Section */}
+      <section className="py-20 bg-white dark:bg-gray-900">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-4xl mx-auto prose prose-blue dark:prose-invert">
           <p className="text-lg text-gray-600 dark:text-gray-300 mb-6">
             At BoostFlow, we take your privacy seriously. This Privacy Policy explains how we collect, use, disclose, 
             and safeguard your information when you visit our website or use our productivity platform.
@@ -111,17 +118,17 @@ const PrivacyPolicyPage = () => {
             <h2 className="text-2xl font-semibold mb-4">Contact Us</h2>
             <p className="mb-6">
               If you have any questions about this Privacy Policy, please contact us at{' '}
-              <a href="mailto:privacy@boostflow.com" className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
-                privacy@boostflow.com
+              <a className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                privacy email here
               </a>
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
-              <a href="/contact" className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors">
+              <Link href="/contact" className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium py-3 px-6 rounded-full hover:shadow-lg transition-all text-center">
                 Contact Us
-              </a>
-              <a href="/terms-of-service" className="inline-block bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 font-medium py-2 px-4 rounded-md transition-colors">
+              </Link>
+              <Link href="/terms-of-service" className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 font-medium py-3 px-6 rounded-full hover:shadow-lg transition-all text-center">
                 View Terms of Service
-              </a>
+              </Link>
             </div>
           </div>
           <div className="mt-16 text-center">
@@ -134,20 +141,45 @@ const PrivacyPolicyPage = () => {
                 <input
                   type="email"
                   placeholder="Enter your email"
-                  className="flex-grow px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  className="flex-grow px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                   required
                 />
                 <button
                   type="submit"
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium py-3 px-6 rounded-full hover:shadow-lg transition-all"
                 >
                   Subscribe
                 </button>
               </form>
             </div>
           </div>
+          </div>
         </div>
-      </div>
+      </section>
+      
+      {/* CTA Section */}
+      <section className="py-20 bg-gradient-to-br from-blue-600 to-purple-600 text-white">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-3xl mx-auto text-center">
+            <h2 className="text-3xl md:text-4xl font-bold mb-6">Have Questions About Your Privacy?</h2>
+            <p className="text-lg mb-8 text-blue-100">Our team is here to help you understand how we protect your data and answer any questions you may have.</p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link 
+                href="/contact" 
+                className="bg-white text-blue-600 font-medium py-3 px-8 rounded-full hover:shadow-lg transition-all text-center"
+              >
+                Contact Us
+              </Link>
+              <Link 
+                href="/terms-of-service" 
+                className="bg-transparent border border-white text-white font-medium py-3 px-8 rounded-full hover:bg-white/10 transition-all text-center"
+              >
+                View Terms of Service
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 };

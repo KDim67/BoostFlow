@@ -50,18 +50,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Trusted By Section */}
-      <section className="py-12 bg-white dark:bg-gray-900">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-gray-500 dark:text-gray-400 mb-8">Trusted by innovative teams worldwide</p>
-          <div className="flex flex-wrap justify-center items-center gap-8 md:gap-16">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-8 w-32 bg-gray-200 dark:bg-gray-700 rounded-md opacity-50"></div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Features Section */}
       <section className="py-20 bg-gray-50 dark:bg-gray-800">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -159,36 +147,6 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-semibold mb-2">Boost Productivity</h3>
               <p className="text-gray-600 dark:text-gray-300">Start automating tasks, analyzing data, and collaborating more effectively.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials Preview */}
-      <section className="py-20 bg-gray-50 dark:bg-gray-800">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">What Our Customers Say</h2>
-            <p className="text-lg text-gray-600 dark:text-gray-300">Hear from teams that have transformed their workflow with BoostFlow.</p>
-          </div>
-
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-md p-6 md:p-8 max-w-3xl mx-auto">
-            <div className="flex items-center mb-6">
-              <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-full mr-4"></div>
-              <div>
-                <h4 className="font-semibold">Sarah Johnson</h4>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Product Manager, TechCorp</p>
-              </div>
-            </div>
-            <p className="text-gray-600 dark:text-gray-300 italic mb-6">
-              "BoostFlow has completely transformed how our team works. We've automated our repetitive tasks and now have more time to focus on strategic initiatives. The AI-powered analytics have given us insights we never had before."</p>
-            <div className="flex justify-center">
-              <Link href="/testimonials" className="text-blue-600 dark:text-blue-400 font-medium hover:underline inline-flex items-center">
-                View all testimonials
-                <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
             </div>
           </div>
         </div>

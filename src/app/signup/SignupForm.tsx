@@ -13,13 +13,12 @@ export default function SignupForm() {
   const [company, setCompany] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [plan, setPlan] = useState('starter'); // Set default plan
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [passwordError, setPasswordError] = useState('');
   
-  const { signup, error, clearError } = useAuth();
+  const { signup, loginWithGoogle, error, clearError } = useAuth();
   const router = useRouter();
 
   // Display auth errors from useAuth hook
@@ -68,7 +67,6 @@ export default function SignupForm() {
         firstName,
         lastName,
         company,
-        planType: plan, // Using the correct property name
         createdAt: new Date()
       } as any); // Type assertion as a last resort
       
@@ -165,22 +163,7 @@ export default function SignupForm() {
         </p>
       </div>
       
-      <div>
-        <label htmlFor="plan" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select a plan</label>
-        <select 
-          id="plan" 
-          name="plan" 
-          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-          required
-          value={plan}
-          onChange={(e) => setPlan(e.target.value)}
-        >
-          <option value="starter">Starter - $29/month per user</option>
-          <option value="pro">Pro - $79/month per user</option>
-          <option value="enterprise">Enterprise - Custom pricing</option>
-        </select>
-      </div>
-      
+
       <div className="flex items-start">
         <div className="flex items-center h-5">
           <input

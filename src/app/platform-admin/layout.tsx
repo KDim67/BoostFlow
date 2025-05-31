@@ -49,7 +49,7 @@ export default function PlatformAdminLayout({
   };
 
   return (
-    <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
       {/* Mobile overlay */}
       {isMobileView && isMobileSidebarOpen && (
         <div 
@@ -61,16 +61,18 @@ export default function PlatformAdminLayout({
 
       {/* Sidebar */}
       <aside 
-        className={`${isMobileView ? 'fixed inset-y-0 left-0 z-30' : 'relative'} 
+        className={`${isMobileView ? 'fixed inset-y-0 left-0 z-30' : 'fixed inset-y-0 left-0 z-10'} 
                    ${isSidebarCollapsed && !isMobileView ? 'w-20' : 'w-64'} 
                    ${isMobileView && !isMobileSidebarOpen ? '-translate-x-full' : 'translate-x-0'} 
                    bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-sm
-                   transition-all duration-300 ease-in-out flex flex-col`}
+                   transition-all duration-300 ease-in-out flex flex-col h-screen overflow-hidden`}
         aria-label="Sidebar"
       >
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           {!isSidebarCollapsed && (
-            <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400">BoostFlow Admin</h1>
+            <Link href="/" className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent hover:from-blue-700 hover:to-purple-700 transition-all duration-200">
+              BoostFlow Admin
+            </Link>
           )}
           
           {/* Hamburger toggle button */}
@@ -215,28 +217,6 @@ export default function PlatformAdminLayout({
                 <span className="sr-only">System Configuration</span>
               )}
             </Link>
-
-            {/* Platform Monitoring Link */}
-            <Link 
-              href="/platform-admin/monitoring" 
-              className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-md 
-                        ${activeTab === 'monitoring' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'} 
-                        group transition-colors duration-150 ease-in-out`}
-              aria-current={activeTab === 'monitoring' ? 'page' : undefined}
-            >
-              <span className="flex-shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" 
-                  className={`h-5 w-5 ${activeTab === 'monitoring' ? '' : 'text-gray-500 dark:text-gray-400'} 
-                              group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-150 ease-in-out`} 
-                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </span>
-              {(!isSidebarCollapsed || isMobileView) && <span className="ml-2">Platform Monitoring</span>}
-              {isSidebarCollapsed && !isMobileView && (
-                <span className="sr-only">Platform Monitoring</span>
-              )}
-            </Link>
           </nav>
         </div>
         
@@ -283,7 +263,13 @@ export default function PlatformAdminLayout({
       )}
 
       {/* Main content */}
-      <div className={`flex-1 overflow-auto ${isMobileView ? 'pt-16' : ''}`}>
+      <div className={`min-h-screen overflow-auto ${
+        isMobileView 
+          ? 'pt-16' 
+          : isSidebarCollapsed 
+            ? 'ml-20' 
+            : 'ml-64'
+      } transition-all duration-300 ease-in-out`}>
         {/* Content */}
         <main className="p-6">
           {children}

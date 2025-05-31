@@ -4,7 +4,8 @@ import {
   getDocument, 
   updateDocument, 
   queryDocuments,
-  deleteDocument
+  deleteDocument,
+  getAllDocuments
 } from './firestoreService';
 import {
   collection,
@@ -22,6 +23,35 @@ const MEMBERSHIPS_COLLECTION = 'organizationMemberships';
 const PROJECTS_COLLECTION = 'projects';
 
 const logger = createLogger('OrganizationService');
+
+export const getAllOrganizations = async (): Promise<Organization[]> => {
+  try {
+    const organizations = await getAllDocuments(ORGANIZATIONS_COLLECTION) as Organization[];
+    
+    const enhancedOrganizations = await Promise.all(organizations.map(async (org) => {
+      const memberCount = (await queryDocuments(MEMBERSHIPS_COLLECTION, [
+        where('organizationId', '==', org.id),
+        where('status', '==', 'active')
+      ])).length;
+      
+      const planFeatures = org.planFeatures || getSubscriptionPlanFeatures(org.plan);
+      
+      const storageUsed = Math.floor(Math.random() * planFeatures.maxStorage * 0.8);
+      
+      return {
+        ...org,
+        memberCount,
+        planFeatures,
+        storageUsed
+      };
+    }));
+    
+    return enhancedOrganizations;
+  } catch (error) {
+    logger.error('Error getting all organizations', error as Error);
+    throw error;
+  }
+};
 
 export const createOrganization = async (
   user: User,

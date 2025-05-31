@@ -10,7 +10,7 @@ export default function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   
-  const { login, error, clearError } = useAuth();
+  const { login, loginWithGoogle, error, clearError } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -21,7 +21,7 @@ export default function LoginForm() {
     
     try {
       await login(email, password);
-      router.push('/dashboard');
+      router.push('/organizations');
     } catch (error: any) {
       setErrorMessage(error.message || 'Failed to log in');
     } finally {

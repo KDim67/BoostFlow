@@ -42,6 +42,7 @@ export function usePlatformAuth(): UsePlatformAuthReturn {
           const userDoc = await getDoc(doc(firestore, 'users', authUser.uid));
           const userData = userDoc.data();
           
+          
           const platformUser: PlatformAuthUser = authUser;
           platformUser.platformRole = userData?.platformRole as PlatformRole || 'user';
           platformUser.isMultiFactorEnabled = multiFactor(authUser).enrolledFactors.length > 0;

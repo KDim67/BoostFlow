@@ -8,7 +8,8 @@ import {
   logoutUser,
   resetPassword,
   getCurrentUser,
-  subscribeToAuthChanges
+  subscribeToAuthChanges,
+  signInWithGoogle
 } from './authService';
 import { syncUserProfile } from './userProfileService';
 
@@ -18,6 +19,7 @@ interface AuthContextType {
   error: string | null;
   signup: (email: string, password: string, displayName?: string) => Promise<UserCredential>;
   login: (email: string, password: string) => Promise<UserCredential>;
+  loginWithGoogle: () => Promise<UserCredential>;
   logout: () => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
   clearError: () => void;
@@ -90,6 +92,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginWithGoogle = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const userCredential = await signInWithGoogle();
+      
+      if (userCredential.user) {
+        await syncUserProfile(userCredential.user);
+      }
+      
+      return userCredential;
+    } catch (err: any) {
+      setError(err.message || 'Failed to sign in with Google');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const forgotPassword = async (email: string) => {
     try {
       setLoading(true);
@@ -113,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     error,
     signup,
     login,
+    loginWithGoogle,
     logout,
     forgotPassword,
     clearError

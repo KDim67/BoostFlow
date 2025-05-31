@@ -1,5 +1,5 @@
 import { User } from 'firebase/auth';
-import { createDocument, getDocument, updateDocument } from './firestoreService';
+import { createDocument, getDocument, updateDocument, getAllDocuments } from './firestoreService';
 import { createLogger } from '../utils/logger';
 import { PlatformRole } from './usePlatformAuth';
 
@@ -21,6 +21,7 @@ export interface UserProfile {
   settings?: UserSettings;
   createdAt?: Date;
   updatedAt?: Date;
+  suspended?: boolean;
 }
 
 export interface UserSettings {
@@ -109,6 +110,17 @@ export const syncUserProfile = async (
     }
   } catch (error) {
     logger.error('Error syncing user profile', error as Error, { uid: user.uid });
+    throw error;
+  }
+};
+
+export const getAllUserProfiles = async (): Promise<UserProfile[]> => {
+  try {
+    const userProfiles = await getAllDocuments(USER_COLLECTION);
+    logger.debug(`Retrieved ${userProfiles.length} user profiles`);
+    return userProfiles as UserProfile[];
+  } catch (error) {
+    logger.error('Error getting all user profiles', error as Error);
     throw error;
   }
 };

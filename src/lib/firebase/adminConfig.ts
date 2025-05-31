@@ -4,7 +4,7 @@ const initializeFirebaseAdmin = () => {
   if (admin.apps.length === 0) {
     try {
       const serviceAccount = JSON.parse(
-        process.env.FIREBASE_SERVICE_ACCOUNT_KEY || '{}'
+        process.env.NEXT_PUBLIC_FIREBASE_SERVICE_ACCOUNT_KEY || '{}'
       );
       
       admin.initializeApp({

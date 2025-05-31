@@ -18,6 +18,9 @@ export interface Organization {
   requireMfa?: boolean;
   sessionTimeout?: number;
   dataRetentionDays?: number;
+  suspended?: boolean;
+  onTrial?: boolean;
+  storageUsed?: number;
   notificationSettings?: {
     email: boolean;
     slack: boolean;
