@@ -12,7 +12,8 @@ import {
   doc,
   where,
   limit,
-  orderBy
+  orderBy,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from './config';
 import { createLogger } from '../utils/logger';
@@ -229,11 +230,33 @@ export const getOrganizationMembers = async (organizationId: string): Promise<Or
   try {
     const memberships = await queryDocuments(MEMBERSHIPS_COLLECTION, [
       where('organizationId', '==', organizationId),
-      where('status', '==', 'active'),
+      orderBy('status', 'asc'),
       orderBy('role', 'asc')
     ]) as OrganizationMembership[];
     
-    return memberships;
+    const filteredMemberships = memberships.filter(m => m.status === 'active' || m.status === 'invited');
+    
+    const { getUserProfile } = await import('./userProfileService');
+    
+    const membershipsWithProfiles = await Promise.all(
+      filteredMemberships.map(async (membership) => {
+        try {
+          const userProfile = await getUserProfile(membership.userId);
+          return {
+            ...membership,
+            userProfile: userProfile || undefined
+          };
+        } catch (error) {
+          logger.warn(`Failed to fetch user profile for user ${membership.userId}`, error as Error);
+          return {
+            ...membership,
+            userProfile: undefined
+          };
+        }
+      })
+    );
+    
+    return membershipsWithProfiles;
   } catch (error) {
     logger.error('Error getting organization members', error as Error, { organizationId });
     throw error;
@@ -259,6 +282,148 @@ export const removeOrganizationMember = async (membershipId: string): Promise<vo
     logger.info(`Organization member removed: ${membershipId}`);
   } catch (error) {
     logger.error('Error removing organization member', error as Error, { membershipId });
+    throw error;
+  }
+};
+
+export const inviteTeamMember = async (
+  organizationId: string,
+  inviterUserId: string,
+  inviteeEmail: string,
+  role: OrganizationRole = 'member'
+): Promise<string> => {
+  try {
+    const { getUserByEmail } = await import('./userProfileService');
+    const { NotificationService } = await import('./notificationService');
+    
+    const inviteeUser = await getUserByEmail(inviteeEmail);
+    if (!inviteeUser) {
+      throw new Error('User with this email does not exist');
+    }
+    
+    const existingMembership = await queryDocuments(MEMBERSHIPS_COLLECTION, [
+      where('userId', '==', inviteeUser.uid),
+      where('organizationId', '==', organizationId)
+    ]) as OrganizationMembership[];
+    
+    if (existingMembership.length > 0) {
+      throw new Error('User is already a member or has a pending invitation');
+    }
+    
+    const organization = await getOrganization(organizationId);
+    if (!organization) {
+      throw new Error('Organization not found');
+    }
+    
+    const membershipData: Partial<OrganizationMembership> = {
+      organizationId,
+      userId: inviteeUser.uid,
+      role,
+      invitedBy: inviterUserId,
+      status: 'invited',
+      joinedAt: serverTimestamp()
+    };
+    
+    const membershipId = await createOrganizationMembership(membershipData);
+    
+    await NotificationService.createNotification(
+      inviteeUser.uid,
+      'Team Invitation',
+      `You've been invited to join ${organization.name} as a ${role}`,
+      'team_invite',
+      organizationId,
+      `/invitation/${membershipId}`,
+      {
+        organizationId,
+        membershipId,
+        organizationName: organization.name,
+        inviterUserId,
+        role
+      }
+    );
+    
+    logger.info(`Team invitation sent to ${inviteeEmail} for organization ${organizationId}`);
+    return membershipId;
+  } catch (error) {
+    logger.error('Error inviting team member', error as Error, { organizationId, inviteeEmail });
+    throw error;
+  }
+};
+
+export const acceptTeamInvitation = async (membershipId: string): Promise<void> => {
+  try {
+    const membership = await getDocument(MEMBERSHIPS_COLLECTION, membershipId) as OrganizationMembership;
+    if (!membership) {
+      throw new Error('Membership not found');
+    }
+
+    const organization = await getOrganization(membership.organizationId);
+    if (!organization) {
+      throw new Error('Organization not found');
+    }
+
+    await updateOrganizationMembership(membershipId, {
+      status: 'active',
+      joinedAt: serverTimestamp()
+    });
+    
+    if (membership.invitedBy) {
+      const { NotificationService } = await import('./notificationService');
+      await NotificationService.createNotification(
+        membership.invitedBy,
+        'Invitation Accepted',
+        `Your invitation to join ${organization.name} has been accepted.`,
+        'team_invite_accepted',
+        membership.organizationId,
+        `/organizations/${membership.organizationId}`,
+        {
+          organizationId: membership.organizationId,
+          membershipId: membershipId,
+          acceptedBy: membership.userId
+        }
+      );
+    }
+    
+    logger.info(`Team invitation accepted: ${membershipId}`);
+  } catch (error) {
+    logger.error('Error accepting team invitation', error as Error, { membershipId });
+    throw error;
+  }
+};
+
+export const declineTeamInvitation = async (membershipId: string): Promise<void> => {
+  try {
+    const membership = await getDocument(MEMBERSHIPS_COLLECTION, membershipId) as OrganizationMembership;
+    if (!membership) {
+      throw new Error('Membership not found');
+    }
+
+    const organization = await getOrganization(membership.organizationId);
+    if (!organization) {
+      throw new Error('Organization not found');
+    }
+
+    if (membership.invitedBy) {
+      const { NotificationService } = await import('./notificationService');
+      await NotificationService.createNotification(
+        membership.invitedBy,
+        'Invitation Declined',
+        `Your invitation to join ${organization.name} has been declined.`,
+        'team_invite_declined',
+        membership.organizationId,
+        `/organizations/${membership.organizationId}`,
+        {
+          organizationId: membership.organizationId,
+          membershipId: membershipId,
+          declinedBy: membership.userId
+        }
+      );
+    }
+
+    await removeOrganizationMember(membershipId);
+    logger.info(`Team invitation declined: ${membershipId}`);
+  } catch (error) {
+    logger.error('Error declining team invitation', error as Error, { membershipId });
     throw error;
   }
 };

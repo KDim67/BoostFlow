@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/firebase/useAuth';
-import { getOrganization, getOrganizationMembers, hasOrganizationPermission } from '@/lib/firebase/organizationService';
+import { getOrganization, getOrganizationMembers, hasOrganizationPermission, inviteTeamMember, updateOrganizationMembership, removeOrganizationMember } from '@/lib/firebase/organizationService';
 import { Organization, OrganizationMembership } from '@/lib/types/organization';
 
 export default function OrganizationMembers() {
@@ -17,6 +17,10 @@ export default function OrganizationMembers() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'admin' | 'member' | 'viewer'>('member');
   const [isInviting, setIsInviting] = useState(false);
+  const [editingMember, setEditingMember] = useState<string | null>(null);
+  const [editRole, setEditRole] = useState<'admin' | 'member' | 'viewer'>('member');
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isRemoving, setIsRemoving] = useState<string | null>(null);
   const { user } = useAuth();
   const organizationId = Array.isArray(id) ? id[0] : id;
 
@@ -54,23 +58,94 @@ export default function OrganizationMembers() {
 
   const handleInviteMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !inviteEmail) return;
+    if (!user || !inviteEmail || !organizationId) return;
     
     try {
       setIsInviting(true);
+      setError(null);
       
-      // This would be implemented with actual invitation logic
-      // For now, we'll just simulate a delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await inviteTeamMember(organizationId, user.uid, inviteEmail, inviteRole);
       
       setInviteEmail('');
       setInviteRole('member');
       setShowInviteForm(false);
-    } catch (error) {
+      
+      const membersData = await getOrganizationMembers(organizationId);
+      setMembers(membersData);
+    } catch (error: any) {
       console.error('Error inviting member:', error);
+      setError(error.message || 'Failed to send invitation. Please try again.');
     } finally {
       setIsInviting(false);
     }
+  };
+
+  const handleEditMember = (member: OrganizationMembership) => {
+    setEditingMember(member.id);
+    setEditRole(member.role as 'admin' | 'member' | 'viewer');
+  };
+
+  const handleUpdateMember = async (membershipId: string) => {
+    if (!user || !organizationId) return;
+    
+    try {
+      setIsUpdating(true);
+      setError(null);
+      
+      await updateOrganizationMembership(membershipId, { role: editRole });
+      
+      setEditingMember(null);
+      
+      const membersData = await getOrganizationMembers(organizationId);
+      setMembers(membersData);
+    } catch (error: any) {
+      console.error('Error updating member:', error);
+      setError(error.message || 'Failed to update member. Please try again.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleRemoveMember = async (membershipId: string) => {
+    if (!user || !organizationId) return;
+    
+    if (!confirm('Are you sure you want to remove this member from the organization?')) {
+      return;
+    }
+    
+    try {
+      setIsRemoving(membershipId);
+      setError(null);
+      
+      await removeOrganizationMember(membershipId);
+      
+      const membersData = await getOrganizationMembers(organizationId);
+      setMembers(membersData);
+    } catch (error: any) {
+      console.error('Error removing member:', error);
+      setError(error.message || 'Failed to remove member. Please try again.');
+    } finally {
+      setIsRemoving(null);
+    }
+  };
+
+  const getInitials = (member: OrganizationMembership) => {
+    const displayName = member.userProfile?.displayName;
+    const email = member.userProfile?.email;
+    
+    if (displayName) {
+      const names = displayName.trim().split(' ');
+      if (names.length >= 2) {
+        return (names[0][0] + names[names.length - 1][0]).toUpperCase();
+      }
+      return displayName[0].toUpperCase();
+    }
+    
+    if (email) {
+      return email[0].toUpperCase();
+    }
+    
+    return 'U';
   };
 
   const getRoleBadgeColor = (role: string) => {
@@ -203,25 +278,45 @@ export default function OrganizationMembers() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                          <span className="text-gray-500 dark:text-gray-400 font-medium">U</span>
+                          <span className="text-gray-500 dark:text-gray-400 font-medium">{getInitials(member)}</span>
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900 dark:text-white">
-                            {member.userId}
+                            {member.userProfile?.displayName || member.userProfile?.email || 'Unknown User'}
+                            {member.status === 'invited' && (
+                              <span className="ml-2 text-xs text-orange-600 dark:text-orange-400">(Pending)</span>
+                            )}
                           </div>
                           <div className="text-sm text-gray-500 dark:text-gray-400">
-                            user@example.com
+                            {member.userProfile?.email || 'No email'}
                           </div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadgeColor(member.role)}`}>
-                        {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
-                      </span>
+                      {editingMember === member.id ? (
+                        <select
+                          value={editRole}
+                          onChange={(e) => setEditRole(e.target.value as 'admin' | 'member' | 'viewer')}
+                          className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                          disabled={member.role === 'owner'}
+                        >
+                          <option value="admin">Admin</option>
+                          <option value="member">Member</option>
+                          <option value="viewer">Viewer</option>
+                        </select>
+                      ) : (
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadgeColor(member.role)}`}>
+                          {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        member.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                        member.status === 'invited' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' :
+                        'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+                      }`}>
                         {member.status.charAt(0).toUpperCase() + member.status.slice(1)}
                       </span>
                     </td>
@@ -229,8 +324,44 @@ export default function OrganizationMembers() {
                       {member.joinedAt ? new Date(member.joinedAt.seconds * 1000).toLocaleDateString() : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-3">Edit</button>
-                      <button className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">Remove</button>
+                      {editingMember === member.id ? (
+                        <div className="flex justify-end space-x-2">
+                          <button
+                            onClick={() => handleUpdateMember(member.id)}
+                            disabled={isUpdating}
+                            className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 disabled:opacity-50"
+                          >
+                            {isUpdating ? 'Saving...' : 'Save'}
+                          </button>
+                          <button
+                            onClick={() => setEditingMember(null)}
+                            disabled={isUpdating}
+                            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex justify-end space-x-2">
+                          {member.role !== 'owner' && (
+                            <button
+                              onClick={() => handleEditMember(member)}
+                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                            >
+                              Edit
+                            </button>
+                          )}
+                          {member.role !== 'owner' && member.userId !== user?.uid && (
+                            <button
+                              onClick={() => handleRemoveMember(member.id)}
+                              disabled={isRemoving === member.id}
+                              className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
+                            >
+                              {isRemoving === member.id ? 'Removing...' : 'Remove'}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

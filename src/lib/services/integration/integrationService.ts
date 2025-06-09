@@ -34,8 +34,49 @@ export interface DataMapping {
   isRequired: boolean;
 }
 
-export const createIntegration = async (integration: Omit<Integration, 'id' | 'createdAt' | 'updatedAt'>): Promise<Integration> => {
+function getStoredIntegrations(): Integration[] {
+  if (typeof window === 'undefined') return [];
+  
+  try {
+    const stored = localStorage.getItem('boostflow_integrations');
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Error reading integrations from localStorage:', error);
+    return [];
+  }
+}
 
+export const getAllIntegrations = async (): Promise<Integration[]> => {
+  try {
+    const integrations = getStoredIntegrations();
+    return integrations.map(integration => ({
+      ...integration,
+      createdAt: new Date(integration.createdAt),
+      updatedAt: new Date(integration.updatedAt),
+      lastSyncAt: integration.lastSyncAt ? new Date(integration.lastSyncAt) : undefined
+    }));
+  } catch (error) {
+    console.error('Error getting all integrations:', error);
+    return [];
+  }
+};
+
+export const deleteIntegration = async (integrationId: string): Promise<boolean> => {
+  try {
+    const integrations = getStoredIntegrations();
+    const filteredIntegrations = integrations.filter(i => i.id !== integrationId);
+    
+    localStorage.setItem('boostflow_integrations', JSON.stringify(filteredIntegrations));
+    
+    console.log('Deleted integration:', integrationId);
+    return true;
+  } catch (error) {
+    console.error('Error deleting integration:', error);
+    return false;
+  }
+};
+
+export const createIntegration = async (integration: Omit<Integration, 'id' | 'createdAt' | 'updatedAt'>): Promise<Integration> => {
   const newIntegration: Integration = {
     ...integration,
     id: `integration-${Date.now()}`,
@@ -43,39 +84,42 @@ export const createIntegration = async (integration: Omit<Integration, 'id' | 'c
     updatedAt: new Date()
   };
   
-
-  console.log('Created integration:', newIntegration);
-  
-  return newIntegration;
+  try {
+    const integrations = getStoredIntegrations();
+    integrations.push(newIntegration);
+    localStorage.setItem('boostflow_integrations', JSON.stringify(integrations));
+    
+    console.log('Created integration:', newIntegration);
+    return newIntegration;
+  } catch (error) {
+    console.error('Error creating integration:', error);
+    throw new Error('Failed to create integration');
+  }
 };
 
 
 export const getIntegration = async (integrationId: string): Promise<Integration | null> => {
-
-  return {
-    id: integrationId,
-    name: 'Google Calendar Integration',
-    description: 'Syncs events with Google Calendar',
-    type: 'oauth',
-    provider: 'google',
-    config: {
-      scopes: ['calendar.readonly', 'calendar.events'],
-      syncInterval: 15 // minutes
-    },
-    credentials: {
-      clientId: 'google-client-id',
-      clientSecret: 'encrypted-secret'
-    },
-    status: 'active',
-    createdBy: 'admin',
-    createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-    updatedAt: new Date(),
-    lastSyncAt: new Date(Date.now() - 1 * 60 * 60 * 1000)
-  };
+  try {
+    const integrations = getStoredIntegrations();
+    const integration = integrations.find(i => i.id === integrationId);
+    
+    if (integration) {
+      return {
+        ...integration,
+        createdAt: new Date(integration.createdAt),
+        updatedAt: new Date(integration.updatedAt),
+        lastSyncAt: integration.lastSyncAt ? new Date(integration.lastSyncAt) : undefined
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting integration:', error);
+    return null;
+  }
 };
 
 export const updateIntegration = async (integrationId: string, updates: Partial<Omit<Integration, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Integration> => {
-
   const integration = await getIntegration(integrationId);
   
   if (!integration) {
@@ -88,9 +132,21 @@ export const updateIntegration = async (integrationId: string, updates: Partial<
     updatedAt: new Date()
   };
   
-  console.log('Updated integration:', updatedIntegration);
-  
-  return updatedIntegration;
+  try {
+    const integrations = getStoredIntegrations();
+    const index = integrations.findIndex(i => i.id === integrationId);
+    
+    if (index !== -1) {
+      integrations[index] = updatedIntegration;
+      localStorage.setItem('boostflow_integrations', JSON.stringify(integrations));
+    }
+    
+    console.log('Updated integration:', updatedIntegration);
+    return updatedIntegration;
+  } catch (error) {
+    console.error('Error updating integration:', error);
+    throw new Error('Failed to update integration');
+  }
 };
 
 export const syncIntegration = async (integrationId: string): Promise<{ success: boolean; message: string; syncedItems?: number }> => {
@@ -116,20 +172,8 @@ export const syncIntegration = async (integrationId: string): Promise<{ success:
         syncResult = await syncWithGoogleServices(integration);
         break;
         
-      case 'microsoft':
-        syncResult = await syncWithMicrosoftServices(integration);
-        break;
-        
-      case 'slack':
-        syncResult = await syncWithSlack(integration);
-        break;
-        
-      case 'salesforce':
-        syncResult = await syncWithSalesforce(integration);
-        break;
-        
-      case 'zapier':
-        syncResult = await syncWithZapier(integration);
+      case 'github':
+        syncResult = await syncWithGitHub(integration);
         break;
         
       default:
@@ -162,180 +206,143 @@ export const syncIntegration = async (integrationId: string): Promise<{ success:
 
 
 async function syncWithGoogleServices(integration: Integration): Promise<{ success: boolean; message: string; syncedItems?: number }> {
-
   console.log(`Syncing with Google services for integration: ${integration.id}`);
   
-
-  if (!integration.credentials.clientId || !integration.credentials.clientSecret) {
-    throw new Error('Missing Google API credentials');
+  if (!integration.credentials.accessToken) {
+    throw new Error('Missing Google API access token');
   }
   
   const scopes = integration.config.scopes || [];
-  
-
   let syncedItems = 0;
   
-
-  if (scopes.includes('calendar.readonly') || scopes.includes('calendar.events')) {
-    console.log('Syncing Google Calendar events');
-
-    await new Promise(resolve => setTimeout(resolve, 800));
-    syncedItems += Math.floor(Math.random() * 15) + 5;
+  try {
+    if (scopes.includes('calendar.readonly') || scopes.includes('calendar.events')) {
+      console.log('Syncing Google Calendar events');
+      
+      const calendarResponse = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+        headers: {
+          'Authorization': `Bearer ${integration.credentials.accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!calendarResponse.ok) {
+        throw new Error(`Google Calendar API error: ${calendarResponse.status}`);
+      }
+      
+      const calendarData = await calendarResponse.json();
+      syncedItems += calendarData.items?.length || 0;
+    }
+    
+    if (scopes.includes('drive.readonly') || scopes.includes('drive.file')) {
+      console.log('Syncing Google Drive files');
+      
+      const driveResponse = await fetch('https://www.googleapis.com/drive/v3/files?pageSize=100', {
+        headers: {
+          'Authorization': `Bearer ${integration.credentials.accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!driveResponse.ok) {
+        throw new Error(`Google Drive API error: ${driveResponse.status}`);
+      }
+      
+      const driveData = await driveResponse.json();
+      syncedItems += driveData.files?.length || 0;
+    }
+    
+    return {
+      success: true,
+      message: `Successfully synced with Google services`,
+      syncedItems
+    };
+  } catch (error) {
+    console.error('Google sync error:', error);
+    throw error;
   }
-  
-  if (scopes.includes('drive.readonly') || scopes.includes('drive.file')) {
-    console.log('Syncing Google Drive files');
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    syncedItems += Math.floor(Math.random() * 40) + 15;
-  }
-  
-  return {
-    success: true,
-    message: `Successfully synced with Google services`,
-    syncedItems
-  };
 }
 
 
-async function syncWithMicrosoftServices(integration: Integration): Promise<{ success: boolean; message: string; syncedItems?: number }> {
 
-  console.log(`Syncing with Microsoft services for integration: ${integration.id}`);
-  
-  if (!integration.credentials.clientId || !integration.credentials.clientSecret) {
-    throw new Error('Missing Microsoft API credentials');
-  }
-  
-  const services = integration.config.services || ['outlook', 'onedrive', 'teams'];
-  
-  let syncedItems = 0;
-  
-  if (services.includes('outlook')) {
-    console.log('Syncing Outlook emails and calendar');
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    syncedItems += Math.floor(Math.random() * 40) + 15;
-  }
-  
-  if (services.includes('onedrive')) {
-    console.log('Syncing OneDrive files');
-    await new Promise(resolve => setTimeout(resolve, 1200));
-    syncedItems += Math.floor(Math.random() * 30) + 10;
-  }
-  
-  if (services.includes('teams')) {
-    console.log('Syncing Teams messages and channels');
-    await new Promise(resolve => setTimeout(resolve, 900));
-    syncedItems += Math.floor(Math.random() * 25) + 5;
-  }
-  
-  return {
-    success: true,
-    message: `Successfully synced with Microsoft services`,
-    syncedItems
-  };
-}
-
-async function syncWithSlack(integration: Integration): Promise<{ success: boolean; message: string; syncedItems?: number }> {
-  console.log(`Syncing with Slack for integration: ${integration.id}`);
+async function syncWithGitHub(integration: Integration): Promise<{ success: boolean; message: string; syncedItems?: number }> {
+  console.log(`Syncing with GitHub for integration: ${integration.id}`);
   
   if (!integration.credentials.token) {
-    throw new Error('Missing Slack API token');
+    throw new Error('Missing GitHub API token');
   }
   
-  const dataTypes = integration.config.dataTypes || ['messages', 'channels', 'users'];
-  
+  const repositories = integration.config.repositories || [];
+  const dataTypes = integration.config.dataTypes || ['repositories', 'issues', 'pull_requests', 'commits'];
   let syncedItems = 0;
   
-  if (dataTypes.includes('messages')) {
-    console.log('Syncing Slack messages');
-    await new Promise(resolve => setTimeout(resolve, 1100));
-    syncedItems += Math.floor(Math.random() * 100) + 50;
-  }
-  
-  if (dataTypes.includes('channels')) {
-    console.log('Syncing Slack channels');
-    await new Promise(resolve => setTimeout(resolve, 500));
-    syncedItems += Math.floor(Math.random() * 10) + 5;
-  }
-  
-  if (dataTypes.includes('users')) {
-    console.log('Syncing Slack users');
-    await new Promise(resolve => setTimeout(resolve, 700));
-    syncedItems += Math.floor(Math.random() * 20) + 10;
-  }
-  
-  return {
-    success: true,
-    message: `Successfully synced with Slack`,
-    syncedItems
-  };
-}
-
-async function syncWithSalesforce(integration: Integration): Promise<{ success: boolean; message: string; syncedItems?: number }> {
-  console.log(`Syncing with Salesforce for integration: ${integration.id}`);
-  
-  if (!integration.credentials.clientId || !integration.credentials.clientSecret || !integration.credentials.instanceUrl) {
-    throw new Error('Missing Salesforce API credentials');
-  }
-  
-  const objects = integration.config.objects || ['contacts', 'leads', 'opportunities', 'accounts'];
-  
-  let syncedItems = 0;
-  
-  for (const object of objects) {
-    console.log(`Syncing Salesforce ${object}`);
-    await new Promise(resolve => setTimeout(resolve, 800));
+  try {
+    const baseUrl = 'https://api.github.com';
+    const headers = {
+      'Authorization': `token ${integration.credentials.token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'User-Agent': 'BoostFlow-Integration'
+    };
     
-    switch (object) {
-      case 'contacts':
-        syncedItems += Math.floor(Math.random() * 50) + 20;
-        break;
-      case 'leads':
-        syncedItems += Math.floor(Math.random() * 30) + 10;
-        break;
-      case 'opportunities':
-        syncedItems += Math.floor(Math.random() * 20) + 5;
-        break;
-      case 'accounts':
-        syncedItems += Math.floor(Math.random() * 15) + 5;
-        break;
-      default:
-        syncedItems += Math.floor(Math.random() * 10) + 5;
+    if (dataTypes.includes('repositories')) {
+      console.log('Syncing GitHub repositories');
+      
+      const reposResponse = await fetch(`${baseUrl}/user/repos?per_page=100&sort=updated`, { headers });
+      
+      if (!reposResponse.ok) {
+        throw new Error(`GitHub API error: ${reposResponse.status}`);
+      }
+      
+      const reposData = await reposResponse.json();
+      syncedItems += reposData.length;
     }
+    
+    if (repositories.length > 0 && (dataTypes.includes('issues') || dataTypes.includes('pull_requests') || dataTypes.includes('commits'))) {
+      for (const repo of repositories.slice(0, 5)) {
+        if (dataTypes.includes('issues')) {
+          console.log(`Syncing issues for ${repo}`);
+          
+          const issuesResponse = await fetch(`${baseUrl}/repos/${repo}/issues?per_page=50&state=all`, { headers });
+          
+          if (issuesResponse.ok) {
+            const issuesData = await issuesResponse.json();
+            syncedItems += issuesData.length;
+          }
+        }
+        
+        if (dataTypes.includes('pull_requests')) {
+          console.log(`Syncing pull requests for ${repo}`);
+          
+          const prsResponse = await fetch(`${baseUrl}/repos/${repo}/pulls?per_page=50&state=all`, { headers });
+          
+          if (prsResponse.ok) {
+            const prsData = await prsResponse.json();
+            syncedItems += prsData.length;
+          }
+        }
+        
+        if (dataTypes.includes('commits')) {
+          console.log(`Syncing commits for ${repo}`);
+          
+          const commitsResponse = await fetch(`${baseUrl}/repos/${repo}/commits?per_page=50`, { headers });
+          
+          if (commitsResponse.ok) {
+            const commitsData = await commitsResponse.json();
+            syncedItems += commitsData.length;
+          }
+        }
+      }
+    }
+    
+    return {
+      success: true,
+      message: `Successfully synced with GitHub`,
+      syncedItems
+    };
+  } catch (error) {
+    console.error('GitHub sync error:', error);
+    throw error;
   }
-  
-  return {
-    success: true,
-    message: `Successfully synced with Salesforce`,
-    syncedItems
-  };
-}
-
-async function syncWithZapier(integration: Integration): Promise<{ success: boolean; message: string; syncedItems?: number }> {
-  console.log(`Syncing with Zapier for integration: ${integration.id}`);
-  
-  if (!integration.credentials.apiKey) {
-    throw new Error('Missing Zapier API key');
-  }
-  
-  const zapIds = integration.config.zapIds || [];
-  
-  if (zapIds.length === 0) {
-    throw new Error('No Zaps configured for syncing');
-  }
-  
-  let syncedItems = 0;
-  
-  for (const zapId of zapIds) {
-    console.log(`Syncing with Zapier Zap ID: ${zapId}`);
-    await new Promise(resolve => setTimeout(resolve, 600));
-    syncedItems += Math.floor(Math.random() * 5) + 1;
-  }
-  
-  return {
-    success: true,
-    message: `Successfully synced with ${zapIds.length} Zapier Zaps`,
-    syncedItems
-  };
 }
 
 export const getAvailableProviders = async (): Promise<Array<{ id: string; name: string; description: string; icon: string; }>> => {
@@ -347,28 +354,10 @@ export const getAvailableProviders = async (): Promise<Array<{ id: string; name:
       icon: '/icons/google.svg'
     },
     {
-      id: 'microsoft',
-      name: 'Microsoft',
-      description: 'Connect with Microsoft services like Outlook, OneDrive, and Teams',
-      icon: '/icons/microsoft.svg'
-    },
-    {
-      id: 'slack',
-      name: 'Slack',
-      description: 'Connect with Slack for team communication and notifications',
-      icon: '/icons/slack.svg'
-    },
-    {
-      id: 'salesforce',
-      name: 'Salesforce',
-      description: 'Connect with Salesforce CRM for customer data integration',
-      icon: '/icons/salesforce.svg'
-    },
-    {
-      id: 'zapier',
-      name: 'Zapier',
-      description: 'Connect with Zapier to automate workflows with thousands of apps',
-      icon: '/icons/zapier.svg'
+      id: 'github',
+      name: 'GitHub',
+      description: 'Connect with GitHub for repository management and code collaboration',
+      icon: '/icons/github.svg'
     }
   ];
 };

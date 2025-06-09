@@ -158,7 +158,7 @@ export default function PricingPage() {
                 )}
               </div>
               <div className="mb-6">
-                <span className="text-4xl font-bold">$0</span>
+                <span className="text-4xl font-bold">€0</span>
                 <span className="text-gray-500 dark:text-gray-400">/forever</span>
               </div>
               <p className="text-gray-600 dark:text-gray-300 mb-6">Perfect for individuals and small projects to get started.</p>
@@ -197,11 +197,21 @@ export default function PricingPage() {
               </ul>
               
               <Link 
-                href="/signup?plan=free" 
-                className="block w-full bg-white text-gray-600 border border-gray-600 font-medium py-3 px-6 rounded-full hover:bg-gray-50 transition-all text-center mt-auto"
+                href={teamSize > 15 ? "#" : "/signup?plan=free"}
+                className={`block w-full font-medium py-3 px-6 rounded-full transition-all text-center mt-auto ${
+                  teamSize > 15 
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                    : 'bg-white text-gray-600 border border-gray-600 hover:bg-gray-50'
+                }`}
+                onClick={teamSize > 15 ? (e) => e.preventDefault() : undefined}
               >
-                Get Started
+                {teamSize > 15 ? 'Not Available' : 'Get Started'}
               </Link>
+              {teamSize > 15 && (
+                <p className="text-xs text-red-500 mt-2 text-center">
+                  Free plan is limited to 15 users
+                </p>
+              )}
             </div>
 
             {/* Starter Plan */}
@@ -270,7 +280,7 @@ export default function PricingPage() {
                 )}
               </div>
               <div className="mb-6">
-                <span className="text-4xl font-bold">${proPrice}</span>
+                <span className="text-4xl font-bold">€{proPrice}</span>
                 <span className="text-gray-500 dark:text-gray-400">/month per user</span>
               </div>
               <p className="text-gray-600 dark:text-gray-300 mb-6">For growing teams that need advanced features and more customization.</p>

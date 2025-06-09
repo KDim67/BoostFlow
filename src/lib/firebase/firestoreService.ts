@@ -28,7 +28,7 @@ export const createDocument = async (
   collectionPath: string,
   data: DocumentData,
   id?: string
-): Promise<void> => {
+): Promise<string> => {
   try {
     const cleanData = Object.fromEntries(
       Object.entries(data).filter(([_, value]) => value !== undefined)
@@ -44,11 +44,13 @@ export const createDocument = async (
       const docRef = doc(db, collectionPath, id);
       await setDoc(docRef, documentData);
       logger.info(`Document created with ID: ${id}`, { collectionPath });
+      return id;
     } else {
       const collectionRef = collection(db, collectionPath);
       const newDocRef = doc(collectionRef);
       await setDoc(newDocRef, documentData);
       logger.info(`Document created with generated ID: ${newDocRef.id}`, { collectionPath });
+      return newDocRef.id;
     }
   } catch (error) {
     logger.error('Error creating document', error as Error, { collectionPath });

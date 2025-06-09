@@ -5,13 +5,35 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/firebase/useAuth';
 import { getOrganization, getOrganizationMembers, hasOrganizationPermission } from '@/lib/firebase/organizationService';
+import { getUserProfile, UserProfile } from '@/lib/firebase/userProfileService';
 import { Organization, OrganizationMembership } from '@/lib/types/organization';
 import OrganizationProjects from './projects/page';
+import OrganizationIntegrations from '@/components/dashboard/OrganizationIntegrations';
+import OrganizationMembers from './members/page';
+import OrganizationSettings from './settings/page';
+import OrganizationBilling from './billing/page';
+
+function MembersRedirect({ organizationId }: { organizationId: string }) {
+  const router = useRouter();
+  
+  useEffect(() => {
+    router.replace(`/organizations/${organizationId}/members`);
+  }, [router, organizationId]);
+  
+  return (
+    <div className="text-center py-8">
+      <p className="text-gray-600 dark:text-gray-400 mb-4">
+        Redirecting to the dedicated Members page...
+      </p>
+    </div>
+  );
+}
 
 export default function OrganizationPage() {
   const { id } = useParams();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [members, setMembers] = useState<OrganizationMembership[]>([]);
+  const [memberProfiles, setMemberProfiles] = useState<{[key: string]: UserProfile}>({});
   const [activeTab, setActiveTab] = useState('projects');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +64,17 @@ export default function OrganizationPage() {
         
         const membersData = await getOrganizationMembers(organizationId);
         setMembers(membersData);
+        
+        const profilePromises = membersData.map(member => getUserProfile(member.userId));
+        const profiles = await Promise.all(profilePromises);
+        
+        const profileMap: {[key: string]: UserProfile} = {};
+        membersData.forEach((member, index) => {
+          if (profiles[index]) {
+            profileMap[member.userId] = profiles[index];
+          }
+        });
+        setMemberProfiles(profileMap);
       } catch (error) {
         console.error('Error fetching organization data:', error);
         setError('Failed to load organization data. Please try again.');
@@ -116,6 +149,12 @@ export default function OrganizationPage() {
               Settings
             </button>
             <button
+              onClick={() => setActiveTab('integrations')}
+              className={`pb-4 px-1 ${activeTab === 'integrations' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'} font-medium`}
+            >
+              Integrations
+            </button>
+            <button
               onClick={() => setActiveTab('billing')}
               className={`pb-4 px-1 ${activeTab === 'billing' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'} font-medium`}
             >
@@ -130,163 +169,24 @@ export default function OrganizationPage() {
         )}
 
         {activeTab === 'members' && (
-          <div>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Members</h2>
-              <button
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              >
-                Invite Member
-              </button>
-            </div>
+          <OrganizationMembers/>
+        )}
 
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-900">
-                  <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      User
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Role
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Joined
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {members.map((member) => (
-                    <tr key={member.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                            <span className="text-gray-500 font-medium">U</span>
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white">
-                              {member.userId}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadgeColor(member.role)}`}>
-                          {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {member.joinedAt ? new Date(member.joinedAt.seconds * 1000).toLocaleDateString() : 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${member.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                          {member.status.charAt(0).toUpperCase() + member.status.slice(1)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-4">
-                          Edit
-                        </button>
-                        <button className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        {activeTab === 'integrations' && organizationId && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+            <OrganizationIntegrations 
+              currentUser={user?.uid || ''}
+              organizationId={organizationId}
+            />
           </div>
         )}
 
         {activeTab === 'settings' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Organization Settings</h2>
-            <form className="space-y-6">
-              <div>
-                <label htmlFor="orgName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Organization Name
-                </label>
-                <input
-                  type="text"
-                  id="orgName"
-                  defaultValue={organization.name}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="orgDescription" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Description
-                </label>
-                <textarea
-                  id="orgDescription"
-                  defaultValue={organization.description}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              
-              <div>
-                <label htmlFor="orgLogo" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Logo URL
-                </label>
-                <input
-                  type="text"
-                  id="orgLogo"
-                  defaultValue={organization.logoUrl}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              
-              <div className="pt-4">
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
+          <OrganizationSettings/>
         )}
 
         {activeTab === 'billing' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">Billing & Subscription</h2>
-            
-            <div className="mb-8">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Current Plan</h3>
-              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <span className="text-xl font-bold text-gray-900 dark:text-white">
-                      {organization.plan.charAt(0).toUpperCase() + organization.plan.slice(1)} Plan
-                    </span>
-                    <p className="text-gray-600 dark:text-gray-400 mt-1">
-                      {organization.planFeatures?.maxProjects} projects • {organization.planFeatures?.maxMembers} members • {organization.planFeatures?.maxStorage} GB storage
-                    </p>
-                  </div>
-                  <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
-                    Upgrade Plan
-                  </button>
-                </div>
-              </div>
-            </div>
-            
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Payment Method</h3>
-              <button className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                Add Payment Method
-              </button>
-            </div>
-          </div>
+          <OrganizationBilling/>
         )}
     </div>
   );

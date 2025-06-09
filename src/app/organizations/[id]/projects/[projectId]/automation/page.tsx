@@ -3,20 +3,28 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/lib/firebase/useAuth';
-import { hasOrganizationPermission } from '@/lib/firebase/organizationService';
-import WorkflowAutomation from '@/components/dashboard/WorkflowAutomation';
+import { hasOrganizationPermission, getOrganization } from '@/lib/firebase/organizationService';
+import { getDocument } from '@/lib/firebase/firestoreService';
+import WorkflowList from '@/components/dashboard/WorkflowList';
+import SchedulerManagement from '@/components/dashboard/SchedulerManagement';
+import { useRouter } from 'next/navigation';
+import { Organization, Project } from '@/lib/types/organization';
 
 export default function ProjectAutomationPage() {
   const { id, projectId } = useParams();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'workflows' | 'scheduler'>('workflows');
+  const [organization, setOrganization] = useState<Organization | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
   const { user } = useAuth();
-  const organizationId = Array.isArray(id) ? id[0] : id;
-  const projectIdString = Array.isArray(projectId) ? projectId[0] : projectId;
+  const organizationId = Array.isArray(id) ? id[0] : id as string;
+  const projectIdString = Array.isArray(projectId) ? projectId[0] : projectId as string;
 
   useEffect(() => {
-    const checkPermissions = async () => {
-      if (!user || !organizationId) return;
+    const loadData = async () => {
+      if (!user || !organizationId || !projectIdString) return;
       
       try {
         setIsLoading(true);
@@ -26,17 +34,30 @@ export default function ProjectAutomationPage() {
         
         if (!permission) {
           setError('You do not have permission to access automation features.');
+          return;
         }
+
+        const [orgData, projectData] = await Promise.all([
+          getOrganization(organizationId),
+          getDocument('projects', projectIdString) as Promise<Project | null>
+        ]);
+
+        setOrganization(orgData);
+        setProject(projectData);
       } catch (error) {
-        console.error('Error checking permissions:', error);
-        setError('Failed to verify permissions. Please try again.');
+        console.error('Error loading data:', error);
+        setError('Failed to load organization or project data. Please try again.');
       } finally {
         setIsLoading(false);
       }
     };
 
-    checkPermissions();
-  }, [user, organizationId]);
+    loadData();
+  }, [user, organizationId, projectIdString]);
+
+  const handleCreateWorkflow = () => {
+    router.push(`/organizations/${organizationId}/projects/${projectIdString}/automation/workflows/new`);
+  };
 
   if (isLoading) {
     return (
@@ -61,22 +82,62 @@ export default function ProjectAutomationPage() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Workflow Automation</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">
-              Create and manage automated workflows for this project
-            </p>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{project?.name || 'Project'} Automation</h1>
+              <p className="text-gray-500 dark:text-gray-400 mt-1">
+                Create workflows and schedule automated tasks for {project?.name || 'this project'} in {organization?.name || 'your organization'}
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex space-x-1 mt-4">
+            <button
+              onClick={() => setActiveTab('workflows')}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                activeTab === 'workflows'
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+              }`}
+            >
+              Workflows
+            </button>
+            <button
+              onClick={() => setActiveTab('scheduler')}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                activeTab === 'scheduler'
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+              }`}
+            >
+              Scheduled Tasks
+            </button>
+
           </div>
         </div>
 
-        {user && (
-          <WorkflowAutomation 
-            projectId={projectIdString} 
-            currentUser={user.uid} 
-          />
-        )}
+        <div className="p-6">
+          {user && activeTab === 'workflows' && projectIdString && (
+            <WorkflowList 
+              projectId={projectIdString}
+              organizationId={organizationId}
+              currentUser={user.uid}
+              onCreateWorkflow={handleCreateWorkflow}
+            />
+          )}
+          
+          {user && activeTab === 'scheduler' && projectIdString && organizationId && (
+            <SchedulerManagement
+              projectId={projectIdString}
+              organizationId={organizationId}
+              currentUser={user.uid}
+            />
+          )}
+          
+
+        </div>
       </div>
     </div>
   );

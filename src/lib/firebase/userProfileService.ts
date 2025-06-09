@@ -14,7 +14,6 @@ export interface UserProfile {
   photoURL?: string;
   firstName?: string;
   lastName?: string;
-  company?: string;
   jobTitle?: string;
   phoneNumber?: string;
   platformRole?: PlatformRole;
@@ -121,6 +120,17 @@ export const getAllUserProfiles = async (): Promise<UserProfile[]> => {
     return userProfiles as UserProfile[];
   } catch (error) {
     logger.error('Error getting all user profiles', error as Error);
+    throw error;
+  }
+};
+
+export const getUserByEmail = async (email: string): Promise<UserProfile | null> => {
+  try {
+    const userProfiles = await getAllUserProfiles();
+    const user = userProfiles.find(profile => profile.email.toLowerCase() === email.toLowerCase());
+    return user || null;
+  } catch (error) {
+    logger.error('Error getting user by email', error as Error, { email });
     throw error;
   }
 };

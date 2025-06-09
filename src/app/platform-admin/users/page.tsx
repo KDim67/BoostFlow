@@ -36,7 +36,7 @@ export default function UserManagementPage() {
       Email: user.email,
       Role: user.platformRole || 'User',
       Status: user.suspended ? 'Suspended' : !user.updatedAt ? 'Inactive' : 'Active',
-      Organization: user.company || 'Not specified',
+      Organization: user.jobTitle || 'Not specified',
       LastActive: user.updatedAt ? formatLastActive(user.updatedAt) : 'Never'
     }));
   };
@@ -96,7 +96,7 @@ export default function UserManagementPage() {
     }
     
     if (organizationFilter) {
-      result = result.filter(user => user.company === organizationFilter);
+      result = result.filter(user => user.jobTitle === organizationFilter);
     }
     
     setFilteredUsers(result);
@@ -360,7 +360,7 @@ export default function UserManagementPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {user.company || 'Not specified'}
+                        {user.jobTitle || 'Not specified'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {formatLastActive(user.updatedAt)}

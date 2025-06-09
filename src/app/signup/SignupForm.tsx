@@ -10,7 +10,6 @@ import { syncUserProfile } from '@/lib/firebase/userProfileService';
 export default function SignupForm() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [company, setCompany] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -21,14 +20,12 @@ export default function SignupForm() {
   const { signup, loginWithGoogle, error, clearError } = useAuth();
   const router = useRouter();
 
-  // Display auth errors from useAuth hook
   useEffect(() => {
     if (error) {
       setErrorMessage(error);
     }
   }, [error]);
 
-  // Validate password
   const validatePassword = (password: string) => {
     if (password.length < 8) {
       setPasswordError('Password must be at least 8 characters long');
@@ -44,34 +41,28 @@ export default function SignupForm() {
     setErrorMessage('');
     clearError();
     
-    // Validate password before submission
     if (!validatePassword(password)) {
       setIsLoading(false);
       return;
     }
     
     try {
-      // Create the user account
       const displayName = `${firstName} ${lastName}`.trim();
       await signup(email, password, displayName);
       
-      // Get the current user after signup
       const currentUser = auth.currentUser;
       
       if (!currentUser) {
         throw new Error('User creation succeeded but user is not logged in');
       }
       
-      // Add additional profile information
       await syncUserProfile(currentUser, {
         firstName,
         lastName,
-        company,
         createdAt: new Date()
-      } as any); // Type assertion as a last resort
+      } as any);
       
-      // Redirect to dashboard
-      router.push('/dashboard');
+      router.push('http://localhost:3000/organizations');
     } catch (error: any) {
       setErrorMessage(error.message || 'Failed to create account');
     } finally {
@@ -114,17 +105,7 @@ export default function SignupForm() {
         </div>
       </div>
       
-      <div>
-        <label htmlFor="company" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company name</label>
-        <input 
-          type="text" 
-          id="company" 
-          name="company" 
-          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-          value={company}
-          onChange={(e) => setCompany(e.target.value)}
-        />
-      </div>
+
       
       <div>
         <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Work email</label>

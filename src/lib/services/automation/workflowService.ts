@@ -59,106 +59,123 @@ export const CONDITION_TYPES = [
   'data.compare'
 ];
 
-export const createWorkflow = async (workflow: Omit<Workflow, 'id' | 'createdAt' | 'updatedAt'>): Promise<Workflow> => {
+export const createWorkflow = async (workflow: Omit<Workflow, 'id' | 'createdAt' | 'updatedAt'> & { projectId: string }): Promise<Workflow> => {
+  const { createDocument } = await import('@/lib/firebase/firestoreService');
+  const { serverTimestamp } = await import('firebase/firestore');
+  
+  const workflowData = {
+    ...workflow,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  };
+  
   const newWorkflow: Workflow = {
     ...workflow,
-    id: `workflow-${Date.now()}`,
+    id: '',
     createdAt: new Date(),
     updatedAt: new Date()
   };
   
   validateWorkflow(newWorkflow);
   
-  return newWorkflow;
+  try {
+    const docId = await createDocument('workflows', workflowData);
+    return {
+      ...newWorkflow,
+      id: docId
+    };
+  } catch (error) {
+    console.error('Error creating workflow:', error);
+    throw new Error('Failed to create workflow');
+  }
 };
 
 export const getWorkflow = async (workflowId: string): Promise<Workflow | null> => {
-
-  return {
-    id: workflowId,
-    name: 'Task Approval Workflow',
-    description: 'Automatically routes tasks for approval',
-    createdBy: 'admin',
-    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-    updatedAt: new Date(),
-    isActive: true,
-    triggerStep: 'step-1',
-    steps: [
-      {
-        id: 'step-1',
-        type: 'trigger',
-        name: 'Task Created',
-        description: 'Triggered when a new task is created',
-        config: { triggerType: 'task.created' },
-        nextSteps: ['step-2']
-      },
-      {
-        id: 'step-2',
-        type: 'condition',
-        name: 'Is High Priority',
-        description: 'Checks if the task is marked as high priority',
-        config: { 
-          conditionType: 'task.status',
-          field: 'priority',
-          operator: 'equals',
-          value: 'high'
-        },
-        nextSteps: ['step-3', 'step-4']
-      },
-      {
-        id: 'step-3',
-        type: 'action',
-        name: 'Route to Manager',
-        description: 'Routes the task to the manager',
-        config: { 
-          actionType: 'task.create',
-          taskData: {
-            title: 'Review high priority task',
-            assignee: 'manager',
-            priority: 'high'
-          }
-        },
-        nextSteps: []
-      },
-      {
-        id: 'step-4',
-        type: 'action',
-        name: 'Standard Approval',
-        description: 'Routes the task for standard approval',
-        config: { 
-          actionType: 'task.create',
-          taskData: {
-            title: 'Review task',
-            assignee: 'team-member',
-            priority: 'normal'
-          }
-        },
-        nextSteps: []
-      }
-    ]
-  };
+  const { getDocument } = await import('@/lib/firebase/firestoreService');
+  
+  try {
+    const workflow = await getDocument('workflows', workflowId);
+    if (!workflow) {
+      return null;
+    }
+    
+    return convertFirestoreWorkflow(workflow) as Workflow;
+  } catch (error) {
+    console.error('Error fetching workflow:', error);
+    return null;
+  }
 };
 
-export const updateWorkflow = async (workflowId: string, updates: Partial<Omit<Workflow, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Workflow> => {
-  const workflow = await getWorkflow(workflowId);
+export const getWorkflowsByProject = async (projectId: string): Promise<Workflow[]> => {
+  const { queryDocuments } = await import('@/lib/firebase/firestoreService');
+  const { where } = await import('firebase/firestore');
   
-  if (!workflow) {
-    throw new Error(`Workflow with ID ${workflowId} not found`);
+  try {
+    const workflows = await queryDocuments('workflows', [
+      where('projectId', '==', projectId)
+    ]);
+    return workflows.map(workflow => convertFirestoreWorkflow(workflow)) as Workflow[];
+  } catch (error) {
+    console.error('Error fetching workflows:', error);
+    return [];
+  }
+};
+
+const convertFirestoreWorkflow = (firestoreData: any): Workflow => {
+  const workflow = { ...firestoreData };
+  
+  if (workflow.createdAt && typeof workflow.createdAt.toDate === 'function') {
+    workflow.createdAt = workflow.createdAt.toDate();
+  }
+  if (workflow.updatedAt && typeof workflow.updatedAt.toDate === 'function') {
+    workflow.updatedAt = workflow.updatedAt.toDate();
   }
   
-  const updatedWorkflow: Workflow = {
-    ...workflow,
-    ...updates,
-    updatedAt: new Date()
-  };
-  
-  validateWorkflow(updatedWorkflow);
-  
-  return updatedWorkflow;
+  return workflow;
 };
 
-export const deleteWorkflow = async (id: string): Promise<boolean> => {
-  return true;
+export const updateWorkflow = async (workflowId: string, updates: Partial<Omit<Workflow, 'id' | 'createdAt'>>): Promise<Workflow | null> => {
+  const { updateDocument } = await import('@/lib/firebase/firestoreService');
+  const { serverTimestamp } = await import('firebase/firestore');
+  
+  try {
+    const existingWorkflow = await getWorkflow(workflowId);
+    
+    if (!existingWorkflow) {
+      throw new Error(`Workflow with ID ${workflowId} not found`);
+    }
+    
+    const updatedWorkflow: Workflow = {
+      ...existingWorkflow,
+      ...updates,
+      updatedAt: new Date()
+    };
+    
+    validateWorkflow(updatedWorkflow);
+    
+    const updateData = {
+      ...updates,
+      updatedAt: serverTimestamp()
+    };
+    
+    await updateDocument('workflows', workflowId, updateData);
+    
+    return updatedWorkflow;
+  } catch (error) {
+    console.error('Error updating workflow:', error);
+    throw new Error('Failed to update workflow');
+  }
+};
+
+export const deleteWorkflow = async (workflowId: string): Promise<void> => {
+  const { deleteDocument } = await import('@/lib/firebase/firestoreService');
+  
+  try {
+    await deleteDocument('workflows', workflowId);
+  } catch (error) {
+    console.error('Error deleting workflow:', error);
+    throw new Error('Failed to delete workflow');
+  }
 };
 
 function validateWorkflow(workflow: Workflow): void {
@@ -418,5 +435,40 @@ async function executeIntegrationSync(step: WorkflowStep): Promise<Record<string
 }
 
 export const getWorkflowExecutionHistory = async (workflowId: string): Promise<WorkflowExecutionContext[]> => {
-  return [];
+  const { queryDocuments } = await import('@/lib/firebase/firestoreService');
+  const { where, orderBy } = await import('firebase/firestore');
+  
+  try {
+    const executions = await queryDocuments('workflowExecutions', [
+      where('workflowId', '==', workflowId),
+      orderBy('startedAt', 'desc')
+    ]);
+    
+    return executions.map(execution => ({
+      ...execution,
+      startedAt: execution.startedAt?.toDate?.() || execution.startedAt,
+      completedAt: execution.completedAt?.toDate?.() || execution.completedAt
+    })) as WorkflowExecutionContext[];
+  } catch (error) {
+    console.error('Error fetching workflow execution history:', error);
+    return [];
+  }
+};
+
+export const saveWorkflowExecution = async (execution: WorkflowExecutionContext): Promise<void> => {
+  const { createDocument } = await import('@/lib/firebase/firestoreService');
+  const { serverTimestamp } = await import('firebase/firestore');
+  
+  try {
+    const executionData = {
+      ...execution,
+      startedAt: serverTimestamp(),
+      completedAt: execution.completedAt ? serverTimestamp() : null
+    };
+    
+    await createDocument('workflowExecutions', executionData, execution.executionId);
+  } catch (error) {
+    console.error('Error saving workflow execution:', error);
+    throw new Error('Failed to save workflow execution');
+  }
 };

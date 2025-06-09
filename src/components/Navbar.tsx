@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/firebase/useAuth';
 import { usePlatformAuth } from '@/lib/firebase/usePlatformAuth';
 import OrganizationSelector from './navigation/OrganizationSelector';
+import NotificationDropdown from './navigation/NotificationDropdown';
 import Image from 'next/image';
 
 const Navbar = () => {
@@ -13,6 +14,7 @@ const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const { user, logout } = useAuth();
   const [showOrgSelector, setShowOrgSelector] = useState(false);
   
@@ -21,6 +23,18 @@ const Navbar = () => {
   useEffect(() => {
     setShowOrgSelector(pathname.includes('/dashboard') || pathname.includes('/organizations'));
   }, [pathname]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (isProfileOpen && !target.closest('.profile-dropdown')) {
+        setIsProfileOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isProfileOpen]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -82,20 +96,59 @@ const Navbar = () => {
           <div className="hidden md:flex items-center space-x-4">
             {user ? (
               <>
-                <Link href="/organizations" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors">
-                  Workspace
-                </Link>
-                {isSuperAdmin && (
-                  <Link href="/platform-admin" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors">
-                    Admin Panel
-                  </Link>
-                )}
-                <button 
-                  onClick={() => logout()}
-                  className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
+                {/* Notifications */}
+                <NotificationDropdown />
+
+                <div className="relative profile-dropdown">
+                <button
+                  onClick={() => setIsProfileOpen(!isProfileOpen)}
+                  className="flex items-center space-x-2 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 >
-                  Logout
+                  <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
+                    {user.displayName ? user.displayName.charAt(0).toUpperCase() : user.email?.charAt(0).toUpperCase()}
+                  </div>
                 </button>
+                
+                {/* Profile Dropdown */}
+                {isProfileOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700">
+                    <Link
+                      href="/settings"
+                      className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      onClick={() => setIsProfileOpen(false)}
+                    >
+                      Settings
+                    </Link>
+                    <Link
+                      href="/organizations"
+                      className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      onClick={() => setIsProfileOpen(false)}
+                    >
+                      Workspace
+                    </Link>
+                    {isSuperAdmin && (
+                      <Link
+                        href="/platform-admin"
+                        className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        onClick={() => setIsProfileOpen(false)}
+                      >
+                        Admin Panel
+                      </Link>
+                    )}
+                    <hr className="my-1 border-gray-200 dark:border-gray-700" />
+                    <button
+                      onClick={async () => {
+                        await logout();
+                        setIsProfileOpen(false);
+                        router.push('http://localhost:3000/login');
+                      }}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                )}
+              </div>
               </>
             ) : (
               <>
@@ -158,6 +211,13 @@ const Navbar = () => {
               Pricing
             </Link>
             <Link 
+              href="/demo" 
+              className="block px-3 py-2 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              Demo
+            </Link>
+            <Link 
               href="/contact" 
               className="block px-3 py-2 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
               onClick={() => setIsMobileMenuOpen(false)}
@@ -167,6 +227,13 @@ const Navbar = () => {
             <div className="pt-4 pb-3 border-t border-gray-200 dark:border-gray-700">
               {user ? (
                 <>
+                  <Link 
+                    href="/settings" 
+                    className="block px-3 py-2 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Settings
+                  </Link>
                   <Link 
                     href="/organizations" 
                     className="block px-3 py-2 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
@@ -184,9 +251,10 @@ const Navbar = () => {
                     </Link>
                   )}
                   <button 
-                    onClick={() => {
-                      logout();
+                    onClick={async () => {
+                      await logout();
                       setIsMobileMenuOpen(false);
+                      router.push('http://localhost:3000/login');
                     }}
                     className="block w-full text-left px-3 py-2 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
                   >

@@ -13,21 +13,32 @@ interface Task {
   id: string;
   title: string;
   description: string;
-  status: 'To Do' | 'In Progress' | 'Completed';
-  priority: 'Low' | 'Medium' | 'High';
+  status: 'pending' | 'in-progress' | 'completed';
+  priority: 'low' | 'medium' | 'high';
   dueDate: string;
   projectId?: string;
   assignedTo?: string;
+  assignee?: string;
   hoursTracked?: number;
+  timeSpent?: number;
   organizationId: string;
   createdBy: string;
   createdAt: any;
+  completedAt?: any;
+}
+
+interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
 }
 
 export default function OrganizationProjectsTasks() {
   const { id, projectId } = useParams();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -59,6 +70,11 @@ export default function OrganizationProjectsTasks() {
           where('projectId', '==', projectIdString)
         ]);
         setTasks(tasksData as Task[]);
+        
+        const teamMembersData = await queryDocuments('projectMembers', [
+          where('projectId', '==', projectIdString)
+        ]);
+        setTeamMembers(teamMembersData as TeamMember[]);
       } catch (error) {
         console.error('Error fetching tasks data:', error);
         setError('Failed to load tasks data. Please try again.');
@@ -158,15 +174,28 @@ export default function OrganizationProjectsTasks() {
                   <div className="flex-shrink-0 pt-1">
                     <input 
                       type="checkbox" 
-                      checked={task.status === 'Completed'}
+                      checked={task.status === 'completed'}
                       onChange={async () => {
                         try {
-                          const newStatus = task.status === 'Completed' ? 'To Do' : 'Completed';
-                          await updateDocument('tasks', task.id, { status: newStatus });
+                          const newStatus = task.status === 'completed' ? 'pending' : 'completed';
+                          const updateData: any = { status: newStatus };
+                          
+                          // Add completedAt timestamp when marking as completed
+                          if (newStatus === 'completed') {
+                            updateData.completedAt = serverTimestamp();
+                          } else {
+                            updateData.completedAt = null;
+                          }
+                          
+                          await updateDocument('tasks', task.id, updateData);
                           
                           // Update local state
                           setTasks(tasks.map(t => 
-                            t.id === task.id ? { ...t, status: newStatus } : t
+                            t.id === task.id ? { 
+                              ...t, 
+                              status: newStatus,
+                              completedAt: newStatus === 'completed' ? new Date() : undefined
+                            } : t
                           ));
                         } catch (error) {
                           console.error('Error updating task status:', error);
@@ -178,15 +207,22 @@ export default function OrganizationProjectsTasks() {
                   <div className="ml-3 flex-1">
                     <div className="flex justify-between">
                       <h4 className="text-sm font-medium text-gray-900 dark:text-white">{task.title}</h4>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${task.priority === 'High' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : task.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'}`}>
-                        {task.priority}
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${task.priority === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : task.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'}`}>
+                        {task.priority === 'high' ? 'High' : task.priority === 'medium' ? 'Medium' : 'Low'}
                       </span>
                     </div>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{task.description}</p>
-                    <div className="mt-2 flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                      <span className={`px-2 py-1 rounded-full ${task.status === 'Completed' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : task.status === 'In Progress' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'}`}>
-                        {task.status}
-                      </span>
+                    <div className="mt-2 flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
+                      <div className="flex items-center space-x-2">
+                        <span className={`px-2 py-1 rounded-full ${task.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : task.status === 'in-progress' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'}`}>
+                          {task.status === 'completed' ? 'Completed' : task.status === 'in-progress' ? 'In Progress' : 'To Do'}
+                        </span>
+                        {task.assignee && (
+                          <span className="px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400 rounded-full">
+                            {task.assignee}
+                          </span>
+                        )}
+                      </div>
                       <span>Due: {task.dueDate}</span>
                     </div>
                   </div>
@@ -225,10 +261,28 @@ function NewTaskModal({ isOpen, onClose, organizationId, projectId, onTaskCreate
   if (!organizationId || !projectId) return null;
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<'Low' | 'Medium' | 'High'>('Medium');
+  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [dueDate, setDueDate] = useState('');
+  const [assignee, setAssignee] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const { user } = useAuth();
+  
+  // Fetch team members when modal opens
+  useEffect(() => {
+    const fetchTeamMembers = async () => {
+      if (!isOpen || !projectId) return;
+      try {
+        const membersData = await queryDocuments('projectMembers', [
+          where('projectId', '==', projectId)
+        ]);
+        setTeamMembers(membersData as TeamMember[]);
+      } catch (error) {
+        console.error('Error fetching team members:', error);
+      }
+    };
+    fetchTeamMembers();
+  }, [isOpen, projectId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -244,11 +298,14 @@ function NewTaskModal({ isOpen, onClose, organizationId, projectId, onTaskCreate
         description,
         priority,
         dueDate,
-        status: 'To Do' as const,
+        assignee: assignee || 'Unassigned',
+        assignedTo: assignee || undefined,
+        status: 'pending' as const,
         organizationId,
         projectId,
         createdBy: user.uid,
         createdAt: serverTimestamp(),
+        timeSpent: 0,
       };
       
       await createDocument('tasks', taskData);
@@ -305,12 +362,29 @@ function NewTaskModal({ isOpen, onClose, organizationId, projectId, onTaskCreate
             <select
               id="priority"
               value={priority}
-              onChange={(e) => setPriority(e.target.value as 'Low' | 'Medium' | 'High')}
+              onChange={(e) => setPriority(e.target.value as 'low' | 'medium' | 'high')}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
             >
-              <option value="Low">Low</option>
-              <option value="Medium">Medium</option>
-              <option value="High">High</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          
+          <div>
+            <label htmlFor="assignee" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assign To</label>
+            <select
+              id="assignee"
+              value={assignee}
+              onChange={(e) => setAssignee(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+            >
+              <option value="">Unassigned</option>
+              {teamMembers.map((member) => (
+                <option key={member.id} value={member.name}>
+                  {member.name}
+                </option>
+              ))}
             </select>
           </div>
           

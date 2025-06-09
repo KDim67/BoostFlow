@@ -81,13 +81,19 @@ export default function WorkflowAutomation({
       const triggerStep = steps.find(step => step.type === 'trigger');
       
       if (!workflow) {
+        if (!projectId) {
+          setError('Project ID is required to create a workflow');
+          return;
+        }
+        
         const newWorkflow = await createWorkflow({
           name: workflowName,
           description: workflowDescription,
           createdBy: currentUser,
           isActive,
           steps,
-          triggerStep: triggerStep?.id || ''
+          triggerStep: triggerStep?.id || '',
+          projectId
         });
         
         setWorkflow(newWorkflow);

@@ -1,3 +1,5 @@
+import { UserProfile } from '../firebase/userProfileService';
+
 export type SubscriptionPlan = 'free' | 'starter' | 'professional' | 'enterprise';
 
 export type OrganizationRole = 'owner' | 'admin' | 'member' | 'viewer';
@@ -23,7 +25,6 @@ export interface Organization {
   storageUsed?: number;
   notificationSettings?: {
     email: boolean;
-    slack: boolean;
     teams: boolean;
   };
   planFeatures?: {
@@ -31,6 +32,14 @@ export interface Organization {
     maxMembers: number;
     maxStorage: number;
     advancedFeatures: boolean;
+  };
+  subscriptionDetails?: {
+    teamSize: number;
+    billingCycle: string;
+    pricePerUser: number;
+    totalPrice: number;
+    subscribedAt: string;
+    discount: number;
   };
 }
 
@@ -42,6 +51,7 @@ export interface OrganizationMembership {
   joinedAt: any;
   invitedBy?: string;
   status: 'active' | 'invited' | 'suspended';
+  userProfile?: UserProfile;
 }
 
 export interface Project {
@@ -55,6 +65,13 @@ export interface Project {
   dueDate: string;
   createdBy: string;
   createdAt: any;
+  members?: string[];
+  previousMetrics?: {
+    totalTasks: number;
+    completedTasks: number;
+    overdueTasks: number;
+    productivityScore: number;
+  };
 }
 
 
