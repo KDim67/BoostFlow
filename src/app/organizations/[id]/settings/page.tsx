@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/firebase/useAuth';
 import { getOrganization, hasOrganizationPermission } from '@/lib/firebase/organizationService';
 import { Organization } from '@/lib/types/organization';
+import { useFileUpload } from '@/lib/hooks/useFileUpload';
+import ImageCropper, { getCroppedImg } from '@/components/ui/ImageCropper';
 
 export default function OrganizationSettings() {
   const { id } = useParams();
@@ -29,7 +31,10 @@ export default function OrganizationSettings() {
       teams: false
     }
   });
+  const [showImageCropper, setShowImageCropper] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const { user } = useAuth();
+  const { uploading, uploadOrganizationLogo } = useFileUpload();
   const organizationId = Array.isArray(id) ? id[0] : id;
 
   useEffect(() => {
@@ -99,6 +104,71 @@ export default function OrganizationSettings() {
     }));
   };
 
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Create a preview URL for the selected image
+    const imageUrl = URL.createObjectURL(file);
+    setSelectedImage(imageUrl);
+    setShowImageCropper(true);
+  };
+
+  const handleCropComplete = async (croppedAreaPixels: any) => {
+    if (!selectedImage || !organizationId) return;
+
+    try {
+      // Get the cropped image as a blob
+      const croppedImageBlob = await getCroppedImg(selectedImage, croppedAreaPixels, 0);
+      
+      // Convert blob to file
+      const croppedFile = new File([croppedImageBlob], 'organization-logo.jpg', {
+        type: 'image/jpeg'
+      });
+
+      // Upload the cropped image
+      const result = await uploadOrganizationLogo(croppedFile, organizationId, {
+        onSuccess: (result) => {
+          setFormData(prev => ({
+            ...prev,
+            logoUrl: result.url
+          }));
+          if (organization) {
+            setOrganization({
+              ...organization,
+              logoUrl: result.url
+            });
+          }
+          setShowImageCropper(false);
+          setSelectedImage(null);
+          // Clean up the preview URL
+          if (selectedImage) {
+            URL.revokeObjectURL(selectedImage);
+          }
+        },
+        onError: (error) => {
+          console.error('Logo upload failed:', error);
+          setError('Failed to upload logo. Please try again.');
+          setShowImageCropper(false);
+          setSelectedImage(null);
+        }
+      });
+    } catch (error) {
+      console.error('Logo crop/upload error:', error);
+      setError('Failed to process logo. Please try again.');
+      setShowImageCropper(false);
+      setSelectedImage(null);
+    }
+  };
+
+  const handleCropCancel = () => {
+    setShowImageCropper(false);
+    if (selectedImage) {
+      URL.revokeObjectURL(selectedImage);
+      setSelectedImage(null);
+    }
+  };
+
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
@@ -144,7 +214,11 @@ export default function OrganizationSettings() {
   return (
     <div className="space-y-8">
       {/* Settings Header */}
-      <div className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-800 dark:to-gray-700 rounded-xl p-8 shadow-lg border border-blue-100 dark:border-gray-600">
+      <div className={`rounded-xl p-8 shadow-lg border ${
+        organization?.logoUrl 
+          ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700' 
+          : 'bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-800 dark:to-gray-700 border-blue-100 dark:border-gray-600'
+      }`}>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">
           Organization Settings
         </h1>
@@ -227,18 +301,54 @@ export default function OrganizationSettings() {
                   </div>
                   
                   <div>
-                    <label htmlFor="logoUrl" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                      Logo URL
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                      Organization Logo
                     </label>
-                    <input
-                      type="url"
-                      id="logoUrl"
-                      name="logoUrl"
-                      value={formData.logoUrl}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
-                      placeholder="https://example.com/logo.png"
-                    />
+                    <div className="space-y-4">
+                      {/* Current Logo Preview */}
+                      {formData.logoUrl && (
+                        <div className="flex items-center space-x-4">
+                          <img 
+                            src={formData.logoUrl} 
+                            alt="Organization logo" 
+                            className="w-16 h-16 rounded-lg object-cover border border-gray-300 dark:border-gray-600"
+                          />
+                          <div>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">Current logo</p>
+                            <button
+                              type="button"
+                              onClick={() => setFormData(prev => ({ ...prev, logoUrl: '' }))}
+                              className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                            >
+                              Remove logo
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* File Upload */}
+                      <div className="flex items-center space-x-4">
+                        <input
+                          type="file"
+                          id="logoUpload"
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                          disabled={uploading}
+                          className="hidden"
+                        />
+                        <label
+                          htmlFor="logoUpload"
+                          className={`px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                            uploading ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                        >
+                          {uploading ? 'Uploading...' : 'Choose File'}
+                        </label>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          PNG, JPG, GIF up to 5MB
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
                   <div>
@@ -521,6 +631,18 @@ export default function OrganizationSettings() {
           )}
         </div>
       </div>
+      
+      {/* Image Cropper Modal */}
+      {showImageCropper && selectedImage && (
+        <ImageCropper
+          image={selectedImage}
+          onCropComplete={handleCropComplete}
+          onCancel={handleCropCancel}
+          aspectRatio={1}
+          cropShape="round"
+          title="Crop Organization Logo"
+        />
+      )}
     </div>
   );
 }

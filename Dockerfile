@@ -1,49 +1,68 @@
+# Stage 1: Build stage
 FROM node:18-alpine AS builder
 
+# Install build dependencies for native modules and glibc compatibility
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    curl \
+    libc6-compat \
+    gcompat
+# Disable Next.js telemetry
+ENV NEXT_TELEMETRY_DISABLED=1
+
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files first for better caching
 COPY package*.json ./
 
-# Install all dependencies (including dev dependencies)
+# Install dependencies (including dev deps needed for build)
+RUN npm install
+
 RUN npm ci
 
-# Install Next.js globally to ensure the CLI is available
-RUN npm install -g next
-
-# Install additional required packages
-RUN npm install --save @tailwindcss/postcss tailwindcss postcss autoprefixer @react-google-maps/api
-
-# Copy project files
+# Copy source code
 COPY . .
 
-# copy .env FILE
-COPY .env .env
+# Copy environment file if it exists
+COPY .env.local* ./
 
 # Build the Next.js application
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV CI=true
+ENV NODE_ENV=production
 RUN npm run build
 
-# Stage 2: Production image
+# Stage 2: Production image with Node.js
 FROM node:18-alpine
 
-# Set working directory
+# Install additional packages
+RUN apk add --no-cache curl
+
+# Disable Next.js telemetry
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Create app directory
 WORKDIR /app
 
-# Copy from builder stage
+# Copy built Next.js application from builder stage
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/next.config.* ./
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/.env .env
+COPY --from=builder /app/.env.local .env.local
+
+# No additional process manager needed
 
 # Set environment variables
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Expose the port the app runs on
+# Expose port for Next.js
 EXPOSE 3000
 
-# Start the application
+# Start Next.js application
 CMD ["npm", "start"]

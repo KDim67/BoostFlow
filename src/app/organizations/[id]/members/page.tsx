@@ -277,8 +277,24 @@ export default function OrganizationMembers() {
                   <tr key={member.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                          <span className="text-gray-500 dark:text-gray-400 font-medium">{getInitials(member)}</span>
+                        <div className="flex-shrink-0 h-10 w-10">
+                          {member.userProfile?.profilePicture || member.userProfile?.photoURL ? (
+                            <img
+                              src={member.userProfile.profilePicture || member.userProfile.photoURL}
+                              alt={member.userProfile?.displayName || 'User avatar'}
+                              className="h-10 w-10 rounded-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                target.nextElementSibling?.classList.remove('hidden');
+                              }}
+                            />
+                          ) : null}
+                          <div className={`h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center ${
+                            member.userProfile?.profilePicture || member.userProfile?.photoURL ? 'hidden' : ''
+                          }`}>
+                            <span className="text-gray-500 dark:text-gray-400 font-medium">{getInitials(member)}</span>
+                          </div>
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900 dark:text-white">

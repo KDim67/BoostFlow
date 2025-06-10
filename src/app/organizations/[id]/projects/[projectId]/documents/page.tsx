@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { where } from 'firebase/firestore';
 import { useAuth } from '@/lib/firebase/useAuth';
 import { getOrganization, hasOrganizationPermission } from '@/lib/firebase/organizationService';
-import { getDocument } from '@/lib/firebase/firestoreService';
+import { getDocument, getDocuments, deleteDocument } from '@/lib/firebase/firestoreService';
 import { Organization } from '@/lib/types/organization';
+import DocumentUploadModal from '@/components/modals/DocumentUploadModal';
 
 interface Document {
   id: string;
@@ -16,6 +18,7 @@ interface Document {
   uploadedBy: string;
   uploadedAt: string;
   folder?: string;
+  url?: string;
 }
 
 interface Project {
@@ -42,45 +45,29 @@ export default function ProjectDocumentsPage() {
   const organizationId = Array.isArray(id) ? id[0] : id;
   const projectIdString = Array.isArray(projectId) ? projectId[0] : projectId;
 
-  // Mock documents data - replace with actual API calls
-  const mockDocuments: Document[] = [
-    {
-      id: '1',
-      name: 'Project Requirements.pdf',
-      type: 'PDF',
-      size: '2.4 MB',
-      uploadedBy: 'User1',
-      uploadedAt: '2024-01-15',
-      folder: 'General'
-    },
-    {
-      id: '2',
-      name: 'Design Mockups.figma',
-      type: 'Figma',
-      size: '15.2 MB',
-      uploadedBy: 'User2',
-      uploadedAt: '2024-01-14',
-      folder: 'Design'
-    },
-    {
-      id: '3',
-      name: 'Contract Agreement.docx',
-      type: 'Word',
-      size: '1.8 MB',
-      uploadedBy: 'User3',
-      uploadedAt: '2024-01-13',
-      folder: 'Contracts'
-    },
-    {
-      id: '4',
-      name: 'Weekly Report.xlsx',
-      type: 'Excel',
-      size: '892 KB',
-      uploadedBy: 'User4',
-      uploadedAt: '2024-01-12',
-      folder: 'Reports'
+  const fetchDocuments = async () => {
+    try {
+      const docs = await getDocuments('project-documents', [
+        where('projectId', '==', projectIdString),
+        where('organizationId', '==', organizationId)
+      ]);
+      
+      const formattedDocs = docs.map((doc: any) => ({
+        id: doc.id,
+        name: doc.name,
+        type: doc.type,
+        size: doc.size,
+        uploadedBy: doc.uploadedBy,
+        uploadedAt: new Date(doc.uploadedAt).toLocaleDateString(),
+        folder: doc.folder || 'General',
+        url: doc.url
+      }));
+      
+      setDocuments(formattedDocs);
+    } catch (error) {
+      console.error('Error fetching documents:', error);
     }
-  ];
+  };
 
   useEffect(() => {
     const fetchProjectData = async () => {
@@ -117,7 +104,7 @@ export default function ProjectDocumentsPage() {
         
         setProject(projectData as Project);
         
-        setDocuments(mockDocuments);
+        await fetchDocuments();
       } catch (error) {
         console.error('Error fetching project data:', error);
         setError('Failed to load project data. Please try again.');
@@ -177,6 +164,57 @@ export default function ProjectDocumentsPage() {
       setFolders([...folders, newFolderName.trim()]);
       setNewFolderName('');
       setShowNewFolderModal(false);
+    }
+  };
+
+  const handleUploadSuccess = (document: any) => {
+    setDocuments(prev => [document, ...prev]);
+    setShowUploadModal(false);
+  };
+
+  const handleDownload = async (document: Document) => {
+    try {
+      if (!user) {
+        setError('You must be logged in to download documents');
+        return;
+      }
+
+      const token = await user.getIdToken();
+      
+      // Use the secure download API
+      const response = await fetch('/api/files/download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ documentId: document.id }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to download document');
+      }
+
+      const { url } = await response.json();
+      window.open(url, '_blank');
+    } catch (error) {
+      console.error('Error downloading document:', error);
+      setError('Failed to download document. Please try again.');
+    }
+  };
+
+  const handleDelete = async (document: Document) => {
+    if (!confirm(`Are you sure you want to delete "${document.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await deleteDocument('project-documents', document.id);
+      setDocuments(prev => prev.filter(doc => doc.id !== document.id));
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      alert('Failed to delete document. Please try again.');
     }
   };
 
@@ -349,17 +387,20 @@ export default function ProjectDocumentsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">
-                        <button className="text-blue-600 dark:text-blue-400 hover:text-blue-500 p-1">
+                        <button 
+                          onClick={() => handleDownload(document)}
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-500 p-1"
+                          title="Download"
+                        >
                           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
                         </button>
-                        <button className="text-gray-600 dark:text-gray-400 hover:text-gray-500 p-1">
-                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                          </svg>
-                        </button>
-                        <button className="text-red-600 dark:text-red-400 hover:text-red-500 p-1">
+                        <button 
+                          onClick={() => handleDelete(document)}
+                          className="text-red-600 dark:text-red-400 hover:text-red-500 p-1"
+                          title="Delete"
+                        >
                           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
@@ -400,63 +441,14 @@ export default function ProjectDocumentsPage() {
       </div>
 
       {/* Upload Modal */}
-      {showUploadModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-gray-800">
-            <div className="mt-3">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white">Upload Document</h3>
-                <button 
-                  onClick={() => setShowUploadModal(false)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                >
-                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Select Folder
-                  </label>
-                  <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                    {folders.map(folder => (
-                      <option key={folder} value={folder}>{folder}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Choose File
-                  </label>
-                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center">
-                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                      <span className="font-medium">Click to upload</span> or drag and drop
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">PDF, DOC, XLS, PPT up to 10MB</p>
-                    <input type="file" className="hidden" />
-                  </div>
-                </div>
-                <div className="flex justify-end space-x-3 pt-4">
-                  <button 
-                    onClick={() => setShowUploadModal(false)}
-                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                  >
-                    Cancel
-                  </button>
-                  <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                    Upload
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <DocumentUploadModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        projectId={projectIdString || ''}
+        organizationId={organizationId || ''}
+        folders={folders}
+        onUploadSuccess={handleUploadSuccess}
+      />
 
       {/* New Folder Modal */}
       {showNewFolderModal && (

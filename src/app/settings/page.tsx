@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/firebase/useAuth';
 import { getUserProfile, updateUserProfile, UserProfile } from '@/lib/firebase/userProfileService';
 import { updatePassword, updateProfile } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import PersonalIntegrations from '@/components/dashboard/PersonalIntegrations';
+import { useFileUpload } from '@/lib/hooks/useFileUpload';
+import ImageCropper, { getCroppedImg } from '@/components/ui/ImageCropper';
 
 interface SettingsFormData {
   displayName: string;
@@ -28,6 +30,8 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { uploading, uploadProfilePicture } = useFileUpload();
   const [formData, setFormData] = useState<SettingsFormData>({
     displayName: '',
     email: '',
@@ -42,6 +46,8 @@ export default function SettingsPage() {
     profilePicture: ''
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showImageCropper, setShowImageCropper] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -63,6 +69,7 @@ export default function SettingsPage() {
             emailNotifications: profile.settings?.notifications?.email ?? true,
             pushNotifications: profile.settings?.notifications?.push ?? true,
             smsNotifications: profile.settings?.notifications?.sms ?? false,
+            profilePicture: profile.profilePicture || '',
           }));
         }
       } catch (error) {
@@ -78,6 +85,63 @@ export default function SettingsPage() {
 
   const handleInputChange = (field: keyof SettingsFormData, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleProfilePictureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Create object URL for the selected image
+    const imageUrl = URL.createObjectURL(file);
+    setSelectedImage(imageUrl);
+    setShowImageCropper(true);
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleCropComplete = async (croppedAreaPixels: any) => {
+    try {
+      if (!selectedImage) return;
+      
+      const croppedImageBlob = await getCroppedImg(selectedImage, croppedAreaPixels);
+      const croppedFile = new File([croppedImageBlob], 'profile-picture.jpg', {
+        type: 'image/jpeg',
+        lastModified: Date.now(),
+      });
+
+      const result = await uploadProfilePicture(croppedFile, {
+        onSuccess: (result) => {
+          setFormData(prev => ({ ...prev, profilePicture: result.url }));
+          setMessage({ type: 'success', text: 'Profile picture updated successfully' });
+        },
+        onError: (error) => {
+          setMessage({ type: 'error', text: error });
+        },
+      });
+
+      setShowImageCropper(false);
+      setSelectedImage(null);
+      URL.revokeObjectURL(selectedImage);
+    } catch (error) {
+      console.error('Crop error:', error);
+      setMessage({ type: 'error', text: 'Failed to process image' });
+    }
+  };
+
+  const handleCropCancel = () => {
+    setShowImageCropper(false);
+    if (selectedImage) {
+      URL.revokeObjectURL(selectedImage);
+      setSelectedImage(null);
+    }
+  };
+
+  const handleRemoveProfilePicture = () => {
+    setFormData(prev => ({ ...prev, profilePicture: '' }));
+    setMessage({ type: 'success', text: 'Profile picture removed' });
   };
 
 
@@ -100,6 +164,7 @@ export default function SettingsPage() {
         displayName: formData.displayName,
         firstName: formData.firstName,
         lastName: formData.lastName,
+        profilePicture: formData.profilePicture,
       });
 
       setMessage({ type: 'success', text: 'Account information updated successfully' });
@@ -269,6 +334,13 @@ export default function SettingsPage() {
                       </div>
                       
                       {/* Hidden file input */}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleProfilePictureUpload}
+                        className="hidden"
+                      />
 
                     </div>
                     
@@ -282,17 +354,23 @@ export default function SettingsPage() {
                     </div>
                     
                     <div className="flex gap-3 mt-4">
-                      <label className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg cursor-pointer transition-colors duration-200 focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                        className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-medium rounded-lg transition-colors duration-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                      >
                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
-                        Upload Photo
-
-                      </label>
+                        {uploading ? 'Uploading...' : 'Upload Photo'}
+                      </button>
                       
                       <button
                         type="button"
-                        className="inline-flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                        onClick={handleRemoveProfilePicture}
+                        disabled={!formData.profilePicture || uploading}
+                        className="inline-flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm font-medium rounded-lg transition-colors duration-200 focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
                       >
                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -504,6 +582,18 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+      
+      {/* Image Cropper Modal */}
+      {showImageCropper && selectedImage && (
+        <ImageCropper
+          image={selectedImage}
+          onCropComplete={handleCropComplete}
+          onCancel={handleCropCancel}
+          aspectRatio={1}
+          cropShape="round"
+          title="Crop Profile Picture"
+        />
+      )}
     </div>
   );
 }

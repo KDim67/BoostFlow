@@ -167,3 +167,9 @@ export const getCollectionRef = (
 ): CollectionReference => {
   return collection(db, collectionPath);
 };
+
+// Alias for createDocument to match import expectations
+export const addDocument = createDocument;
+
+// Alias for queryDocuments to match import expectations
+export const getDocuments = queryDocuments;

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/firebase/useAuth';
 import { usePlatformAuth } from '@/lib/firebase/usePlatformAuth';
+import { getUserProfile, UserProfile } from '@/lib/firebase/userProfileService';
 import OrganizationSelector from './navigation/OrganizationSelector';
 import NotificationDropdown from './navigation/NotificationDropdown';
 import Image from 'next/image';
@@ -13,6 +14,7 @@ const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
@@ -23,6 +25,23 @@ const Navbar = () => {
   useEffect(() => {
     setShowOrgSelector(pathname.includes('/dashboard') || pathname.includes('/organizations'));
   }, [pathname]);
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (user?.uid) {
+        try {
+          const profile = await getUserProfile(user.uid);
+          setUserProfile(profile);
+        } catch (error) {
+          console.error('Error fetching user profile:', error);
+        }
+      } else {
+        setUserProfile(null);
+      }
+    };
+
+    fetchUserProfile();
+  }, [user]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -104,9 +123,17 @@ const Navbar = () => {
                   onClick={() => setIsProfileOpen(!isProfileOpen)}
                   className="flex items-center space-x-2 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 >
-                  <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
-                    {user.displayName ? user.displayName.charAt(0).toUpperCase() : user.email?.charAt(0).toUpperCase()}
-                  </div>
+                  {userProfile?.profilePicture || userProfile?.photoURL ? (
+                    <img
+                      src={userProfile.profilePicture || userProfile.photoURL}
+                      alt={user.displayName || user.email || 'User'}
+                      className="w-8 h-8 rounded-full object-cover border-2 border-white dark:border-gray-800"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
+                      {user.displayName ? user.displayName.charAt(0).toUpperCase() : user.email?.charAt(0).toUpperCase()}
+                    </div>
+                  )}
                 </button>
                 
                 {/* Profile Dropdown */}

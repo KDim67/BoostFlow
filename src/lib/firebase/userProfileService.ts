@@ -12,6 +12,7 @@ export interface UserProfile {
   email: string;
   displayName?: string;
   photoURL?: string;
+  profilePicture?: string;
   firstName?: string;
   lastName?: string;
   jobTitle?: string;
