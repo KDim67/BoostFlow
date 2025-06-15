@@ -196,8 +196,16 @@ export default function ProjectDocumentsPage() {
         throw new Error(errorData.error || 'Failed to download document');
       }
 
-      const { url } = await response.json();
-      window.open(url, '_blank');
+      // Handle direct file download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = window.document.createElement('a');
+      a.href = url;
+      a.download = document.name;
+      window.document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      window.document.body.removeChild(a);
     } catch (error) {
       console.error('Error downloading document:', error);
       setError('Failed to download document. Please try again.');

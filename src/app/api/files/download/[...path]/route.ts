@@ -3,7 +3,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { adminApp } from '@/lib/firebase/admin';
 import { getDocument } from '@/lib/firebase/firestoreService';
 import { hasOrganizationPermission } from '@/lib/firebase/organizationService';
-import { getPresignedUrl, BUCKETS } from '@/lib/minio/client';
+import minioClient, { BUCKETS } from '@/lib/minio/client';
 
 const auth = getAuth(adminApp);
 
@@ -42,15 +42,28 @@ export async function GET(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
     
-    // Generate presigned URL for secure access using the fileName from Firestore
-    const presignedUrl = await getPresignedUrl(
-      BUCKETS.PROJECT_DOCUMENTS,
-      document.fileName,
-      3600 // 1 hour expiry
-    );
-
-    // Redirect to the presigned URL
-    return NextResponse.redirect(presignedUrl);
+    // Stream file directly from MinIO
+    const fileStream = await minioClient.getObject(BUCKETS.PROJECT_DOCUMENTS, document.fileName);
+    
+    // Convert stream to buffer for Next.js response
+    const chunks: Buffer[] = [];
+    for await (const chunk of fileStream) {
+      chunks.push(chunk);
+    }
+    const fileBuffer = Buffer.concat(chunks);
+    
+    // Create response with proper headers
+    const response = new NextResponse(fileBuffer, {
+      status: 200,
+      headers: {
+        'Content-Type': document.mimeType || 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="${document.originalName}"`,
+        'Cache-Control': 'private, no-cache',
+        'Content-Length': fileBuffer.length.toString(),
+      },
+    });
+    
+    return response;
   } catch (error) {
     console.error('Error accessing file:', error);
     return NextResponse.json(
@@ -90,14 +103,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    // Generate presigned URL
-    const presignedUrl = await getPresignedUrl(
-      BUCKETS.PROJECT_DOCUMENTS,
-      document.fileName,
-      3600 // 1 hour expiry
-    );
-
-    return NextResponse.json({ url: presignedUrl });
+    // Stream file directly from MinIO
+    const fileStream = await minioClient.getObject(BUCKETS.PROJECT_DOCUMENTS, document.fileName);
+    
+    // Convert stream to buffer for Next.js response
+    const chunks: Buffer[] = [];
+    for await (const chunk of fileStream) {
+      chunks.push(chunk);
+    }
+    const fileBuffer = Buffer.concat(chunks);
+    
+    // Create response with proper headers
+    const response = new NextResponse(fileBuffer, {
+      status: 200,
+      headers: {
+        'Content-Type': document.mimeType || 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="${document.originalName}"`,
+        'Cache-Control': 'private, no-cache',
+        'Content-Length': fileBuffer.length.toString(),
+      },
+    });
+    
+    return response;
   } catch (error) {
     console.error('Error generating download URL:', error);
     return NextResponse.json(
