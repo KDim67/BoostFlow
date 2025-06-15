@@ -3,6 +3,7 @@ import { uploadFile, BUCKETS, generateFileName, initializeBuckets } from '@/lib/
 import { getAuth } from 'firebase-admin/auth';
 import { adminApp } from '@/lib/firebase/admin';
 import { addDocument } from '@/lib/firebase/firestoreService';
+import { hasOrganizationPermission } from '@/lib/firebase/organizationService';
 
 const auth = getAuth(adminApp);
 
@@ -34,6 +35,12 @@ export async function POST(request: NextRequest) {
 
     if (!projectId || !organizationId) {
       return NextResponse.json({ error: 'Project ID and Organization ID are required' }, { status: 400 });
+    }
+
+    // Check if user has permission to upload files to this organization
+    const hasPermission = await hasOrganizationPermission(userId, organizationId, 'member');
+    if (!hasPermission) {
+      return NextResponse.json({ error: 'Insufficient permissions to upload files to this organization' }, { status: 403 });
     }
 
     // Validate file size (50MB limit for documents)
