@@ -100,20 +100,20 @@ export async function getPresignedUrl(
       
       if (externalEndpoint.startsWith('https://')) {
         useSSL = true;
-        const cleanEndpoint = externalEndpoint.replace('https://', '');
+        const cleanEndpoint = externalEndpoint.replace('https://', '').split('/')[0];
         const parts = cleanEndpoint.split(':');
         endPoint = parts[0];
         port = parts[1] ? parseInt(parts[1]) : 443;
       } else if (externalEndpoint.startsWith('http://')) {
         useSSL = false;
-        const cleanEndpoint = externalEndpoint.replace('http://', '');
+        const cleanEndpoint = externalEndpoint.replace('http://', '').split('/')[0];
         const parts = cleanEndpoint.split(':');
         endPoint = parts[0];
         port = parts[1] ? parseInt(parts[1]) : 80;
       } else {
         // No protocol specified, assume https for production domains
         useSSL = externalEndpoint.includes('.');
-        const parts = externalEndpoint.split(':');
+        const parts = externalEndpoint.split('/')[0].split(':');
         endPoint = parts[0];
         port = parts[1] ? parseInt(parts[1]) : (useSSL ? 443 : 80);
       }
