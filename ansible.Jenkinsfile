@@ -3,8 +3,7 @@ pipeline {
     agent any
 
     parameters {
-        booleanParam(name: 'INSTALL_POSTGRES', defaultValue: true, description: 'Install PostgreSQL')
-        booleanParam(name: 'INSTALL_SPRING', defaultValue: true, description: 'Install Spring Boot app')
+        booleanParam(name: 'INSTALL_ALL', defaultValue: true, description: 'Install ALL')
     }
 
     stages {
@@ -23,7 +22,7 @@ pipeline {
             }
         }
         
-        stage('Install postgres') {
+        stage('Install all') {
              when {
                 expression { return params.INSTALL_ALL }
             }

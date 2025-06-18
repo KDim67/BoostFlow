@@ -18,7 +18,7 @@ pipeline {
             }
         }
         
-        stage('Install postgres') {
+        stage('Install all') {
             steps {
                 sh '''
                     export ANSIBLE_CONFIG=~/workspace/ansible/ansible.cfg
