@@ -351,16 +351,31 @@ export const inviteTeamMember = async (
       const inviterName = inviterProfile?.displayName || inviterProfile?.email || 'Someone';
       const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/invitation/${membershipId}`;
       
-      await emailService.sendInvitationEmail({
+      logger.info(`Preparing to send invitation email to ${inviteeEmail}`, {
+        inviterName,
+        organizationName: organization.name,
+        inviteUrl,
+        emailProvider: process.env.EMAIL_PROVIDER
+      });
+      
+      const emailResult = await emailService.sendInvitationEmail({
         to: inviteeEmail,
         inviterName,
         organizationName: organization.name,
         inviteUrl,
       });
       
-      logger.info(`Email invitation sent to ${inviteeEmail}`);
+      if (emailResult.success) {
+        logger.info(`Email invitation sent successfully to ${inviteeEmail}`, { messageId: emailResult.messageId });
+      } else {
+        logger.error(`Failed to send invitation email to ${inviteeEmail}: ${emailResult.error}`);
+      }
     } catch (emailError) {
-      logger.error('Failed to send invitation email', emailError as Error);
+      logger.error('Failed to send invitation email', emailError as Error, {
+        inviteeEmail,
+        organizationId,
+        membershipId
+      });
       // Don't throw here - the invitation was created successfully
     }
     

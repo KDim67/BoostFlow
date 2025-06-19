@@ -207,7 +207,16 @@ class EmailService {
     `;
     const text = `You've been invited to join ${organizationName} on BoostFlow by ${inviterName}. Accept your invitation: ${inviteUrl}`;
 
-    return this.sendEmail({ to, subject, html, text });
+    logger.info(`Attempting to send invitation email to ${to}`);
+    const result = await this.sendEmail({ to, subject, html, text });
+    
+    if (result.success) {
+      logger.info(`Invitation email sent successfully to ${to}`, { messageId: result.messageId });
+    } else {
+      logger.error(`Failed to send invitation email to ${to}: ${result.error}`);
+    }
+    
+    return result;
   }
 
   async sendProjectNotificationEmail({
