@@ -6,7 +6,7 @@ environment {
         DOCKER_TOKEN=credentials('docker-push-secret')
         DOCKER_USER='nikosd767'
         DOCKER_SERVER='ghcr.io'
-        DOCKER_PREFIX='ghcr.io/nikosd767/boostflow:latest'
+        DOCKER_PREFIX='ghcr.io/nikosd767/boostflow'
     }
 
 
