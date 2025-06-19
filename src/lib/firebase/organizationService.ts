@@ -342,6 +342,43 @@ export const inviteTeamMember = async (
       }
     );
     
+    // Send email notification
+    try {
+      const { emailService } = await import('../services/emailService');
+      const { getUserProfile } = await import('./userProfileService');
+      
+      const inviterProfile = await getUserProfile(inviterUserId);
+      const inviterName = inviterProfile?.displayName || inviterProfile?.email || 'Someone';
+      const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/invitation/${membershipId}`;
+      
+      logger.info(`Preparing to send invitation email to ${inviteeEmail}`, {
+        inviterName,
+        organizationName: organization.name,
+        inviteUrl,
+        emailProvider: process.env.EMAIL_PROVIDER
+      });
+      
+      const emailResult = await emailService.sendInvitationEmail({
+        to: inviteeEmail,
+        inviterName,
+        organizationName: organization.name,
+        inviteUrl,
+      });
+      
+      if (emailResult.success) {
+        logger.info(`Email invitation sent successfully to ${inviteeEmail}`, { messageId: emailResult.messageId });
+      } else {
+        logger.error(`Failed to send invitation email to ${inviteeEmail}: ${emailResult.error}`);
+      }
+    } catch (emailError) {
+      logger.error('Failed to send invitation email', emailError as Error, {
+        inviteeEmail,
+        organizationId,
+        membershipId
+      });
+      // Don't throw here - the invitation was created successfully
+    }
+    
     logger.info(`Team invitation sent to ${inviteeEmail} for organization ${organizationId}`);
     return membershipId;
   } catch (error) {

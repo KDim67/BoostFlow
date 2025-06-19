@@ -121,9 +121,9 @@ export default function ContactPage() {
                   <div>
                     <h3 className="text-lg font-semibold mb-1">Email</h3>
                     <p className="text-gray-600 dark:text-gray-300 mb-2">For general inquiries:</p>
-                    <a href="mailto:info@boostflow.ai" className="text-blue-600 dark:text-blue-400 hover:underline">info email</a>
+                    <a href="mailto:info@boostflow.me" className="text-blue-600 dark:text-blue-400 hover:underline">info email</a>
                     <p className="text-gray-600 dark:text-gray-300 mt-2 mb-2">For support:</p>
-                    <a href="mailto:support@boostflow.ai" className="text-blue-600 dark:text-blue-400 hover:underline">support email</a>
+                    <a href="mailto:support@boostflow.me" className="text-blue-600 dark:text-blue-400 hover:underline">support email</a>
                   </div>
                 </div>
 
