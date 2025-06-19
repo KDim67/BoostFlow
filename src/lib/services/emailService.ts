@@ -153,7 +153,23 @@ class EmailService {
     }
 
     const environment = process.env.NODE_ENV || 'development';
-    const emailProvider = process.env.EMAIL_PROVIDER || (environment === 'production' ? 'sendgrid' : 'mailhog');
+    
+    // Auto-detect environment and choose appropriate provider
+    // Priority: 1. Explicit EMAIL_PROVIDER env var, 2. Auto-detect based on NODE_ENV
+    let emailProvider = process.env.EMAIL_PROVIDER;
+    
+    if (!emailProvider) {
+      // Auto-detect based on environment
+      if (environment === 'production') {
+        emailProvider = 'sendgrid';
+      } else {
+        // For development, test, or any non-production environment, use MailHog
+        emailProvider = 'mailhog';
+      }
+      logger.info(`Auto-detected email provider: ${emailProvider} (NODE_ENV: ${environment})`);
+    } else {
+      logger.info(`Using explicit email provider: ${emailProvider}`);
+    }
 
     switch (emailProvider.toLowerCase()) {
       case 'sendgrid':
