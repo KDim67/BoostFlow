@@ -62,7 +62,7 @@ export default function SignupForm() {
         createdAt: new Date()
       } as any);
       
-      router.push('http://localhost:3000/organizations');
+      router.push('/organizations');
     } catch (error: any) {
       setErrorMessage(error.message || 'Failed to create account');
     } finally {

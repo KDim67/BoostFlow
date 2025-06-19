@@ -167,7 +167,7 @@ const Navbar = () => {
                       onClick={async () => {
                         await logout();
                         setIsProfileOpen(false);
-                        router.push('http://localhost:3000/login');
+                        router.push('/login');
                       }}
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
@@ -281,7 +281,7 @@ const Navbar = () => {
                     onClick={async () => {
                       await logout();
                       setIsMobileMenuOpen(false);
-                      router.push('http://localhost:3000/login');
+                      router.push('/login');
                     }}
                     className="block w-full text-left px-3 py-2 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
                   >
