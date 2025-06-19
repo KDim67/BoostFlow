@@ -64,7 +64,27 @@ export default function OrganizationMembers() {
       setIsInviting(true);
       setError(null);
       
-      await inviteTeamMember(organizationId, user.uid, inviteEmail, inviteRole);
+      // Get the user's ID token
+      const token = await user.getIdToken();
+      
+      // Call the API route instead of the service directly
+      const response = await fetch(`/api/organizations/${organizationId}/invite`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          email: inviteEmail,
+          role: inviteRole
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to send invitation');
+      }
       
       setInviteEmail('');
       setInviteRole('member');
