@@ -32,6 +32,8 @@ export type NotificationType =
   | 'member_left'
   | 'project_created'
   | 'project_updated'
+  | 'task_created'
+  | 'task_assigned'
   | 'system_announcement'
   | 'general';
 

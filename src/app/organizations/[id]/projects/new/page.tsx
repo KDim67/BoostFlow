@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/firebase/useAuth';
 import { getOrganization, hasOrganizationPermission } from '@/lib/firebase/organizationService';
 import { createDocument } from '@/lib/firebase/firestoreService';
 import { Organization } from '@/lib/types/organization';
+import { EnhancedNotificationService } from '@/lib/services/enhancedNotificationService';
 
 export default function NewProjectPage() {
   const { id } = useParams();
@@ -83,6 +84,20 @@ export default function NewProjectPage() {
       };
       
       const projectId = await createDocument('projects', projectData);
+      
+      // Send project creation notifications
+      try {
+        await EnhancedNotificationService.notifyProjectCreated({
+          projectId,
+          projectName: formData.name,
+          creatorUserId: user.uid,
+          organizationId,
+          organizationName: organization.name
+        });
+      } catch (notificationError) {
+        console.error('Failed to send project creation notifications:', notificationError);
+        // Don't block the project creation if notifications fail
+      }
       
       router.push(`/organizations/${organizationId}/projects/${projectId}`);
     } catch (error) {

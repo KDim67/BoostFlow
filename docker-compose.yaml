@@ -41,6 +41,16 @@ services:
       timeout: 10s
       retries: 3
 
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: boostflow-mailhog
+    restart: always
+    ports:
+      - "1025:1025"  # SMTP port
+      - "8025:8025"  # Web UI port
+    networks:
+      - app-network
+
 networks:
   app-network:
     driver: bridge
