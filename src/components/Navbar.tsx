@@ -17,7 +17,7 @@ const Navbar = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, loading: authLoading } = useAuth();
   const [showOrgSelector, setShowOrgSelector] = useState(false);
   
   const { isSuperAdmin } = usePlatformAuth();
@@ -38,6 +38,24 @@ const Navbar = () => {
 
     fetchUserProfile();
   }, [user]);
+
+  // Listen for profile picture updates
+  useEffect(() => {
+    const handleProfilePictureUpdate = (event: CustomEvent) => {
+      if (userProfile) {
+        setUserProfile(prev => prev ? {
+          ...prev,
+          profilePicture: event.detail.profilePicture
+        } : null);
+      }
+    };
+
+    window.addEventListener('profilePictureUpdated', handleProfilePictureUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('profilePictureUpdated', handleProfilePictureUpdate as EventListener);
+    };
+  }, [userProfile]);
 
   const showNotifications = userProfile?.settings?.notifications?.website ?? true;
 
@@ -197,17 +215,19 @@ const Navbar = () => {
               </div>
               </>
             ) : (
-              <>
-                <Link href="/login" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors">
-                  Login
-                </Link>
-                <Link 
-                  href="/signup" 
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium py-2 px-4 rounded-full hover:shadow-lg transition-all"
-                >
-                  Start Free Trial
-                </Link>
-              </>
+              !authLoading && (
+                <>
+                  <Link href="/login" className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors">
+                    Login
+                  </Link>
+                  <Link 
+                    href="/signup" 
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium py-2 px-4 rounded-full hover:shadow-lg transition-all"
+                  >
+                    Start Free Trial
+                  </Link>
+                </>
+              )
             )}
           </div>
 
@@ -317,22 +337,24 @@ const Navbar = () => {
                   </button>
                 </>
               ) : (
-                <>
-                  <Link 
-                    href="/login" 
-                    className="block px-3 py-2 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Login
-                  </Link>
-                  <Link 
-                    href="/signup" 
-                    className="block px-3 py-2 mt-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium rounded-full text-center"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Start Free Trial
-                  </Link>
-                </>
+                !authLoading && (
+                  <>
+                    <Link 
+                      href="/login" 
+                      className="block px-3 py-2 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Login
+                    </Link>
+                    <Link 
+                      href="/signup" 
+                      className="block px-3 py-2 mt-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium rounded-full text-center"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Start Free Trial
+                    </Link>
+                  </>
+                )
               )}
             </div>
           </div>

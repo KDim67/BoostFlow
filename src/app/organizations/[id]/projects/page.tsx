@@ -130,13 +130,30 @@ export default function OrganizationProjects() {
   };
 
   const handleDeleteProject = async (projectId: string) => {
-    if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
+    if (!confirm('Are you sure you want to delete this project? This action cannot be undone. All project documents and files will also be permanently deleted.')) {
       return;
     }
 
     try {
       setIsDeleting(projectId);
-      await deleteDocument('projects', projectId);
+      
+      const token = await user?.getIdToken();
+      if (!token) {
+        throw new Error('No authentication token');
+      }
+
+      const response = await fetch('/api/projects/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ projectId }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete project');
+      }
       
       setProjects(prev => prev.filter(p => p.id !== projectId));
     } catch (error) {

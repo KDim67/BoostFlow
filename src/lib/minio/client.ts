@@ -11,6 +11,7 @@ const minioClient = new Client({
 // Bucket names
 export const BUCKETS = {
   PROFILE_PICTURES: 'profile-pictures',
+  ORGANIZATION_LOGOS: 'organization-logos',
   PROJECT_DOCUMENTS: 'project-documents',
 } as const;
 
@@ -24,8 +25,8 @@ export async function initializeBuckets() {
         console.log(`Created bucket: ${bucketName}`);
       }
       
-      // Set public read policy for profile-pictures bucket (for both new and existing buckets)
-      if (bucketName === BUCKETS.PROFILE_PICTURES) {
+      // Set public read policy for profile-pictures and organization-logos buckets (for both new and existing buckets)
+      if (bucketName === BUCKETS.PROFILE_PICTURES || bucketName === BUCKETS.ORGANIZATION_LOGOS) {
         const policy = {
           Version: '2012-10-17',
           Statement: [
@@ -47,9 +48,21 @@ export async function initializeBuckets() {
 }
 
 // Generate unique filename
-export function generateFileName(originalName: string, userId: string): string {
-  const timestamp = Date.now();
+export function generateFileName(originalName: string, userId: string, fileType?: string): string {
   const extension = originalName.split('.').pop();
+  
+  // For profile pictures, use a consistent filename to overwrite previous uploads
+  if (fileType === 'profile') {
+    return `${userId}/profile.${extension}`;
+  }
+  
+  // For organization logos, use a consistent filename to overwrite previous uploads
+  if (fileType === 'logo') {
+    return `${userId}/logo.${extension}`;
+  }
+  
+  // For other files, use timestamp to avoid conflicts
+  const timestamp = Date.now();
   const baseName = originalName.split('.').slice(0, -1).join('.');
   return `${userId}/${timestamp}-${baseName}.${extension}`;
 }
@@ -170,6 +183,42 @@ export async function listFiles(bucketName: string, prefix?: string): Promise<an
   } catch (error) {
     console.error('Error listing files from MinIO:', error);
     throw new Error('Failed to list files');
+  }
+}
+
+// Extract filename from MinIO URL
+export function extractFileNameFromUrl(url: string): string | null {
+  try {
+    // Handle both external and internal endpoint formats
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split('/');
+    
+    // URL format: http://endpoint/bucket/filename
+    if (pathParts.length >= 3) {
+      return pathParts.slice(2).join('/'); // Join in case filename has slashes
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error extracting filename from URL:', error);
+    return null;
+  }
+}
+
+// Delete file by URL
+export async function deleteFileByUrl(url: string, bucketName: string): Promise<void> {
+  try {
+    const fileName = extractFileNameFromUrl(url);
+    if (!fileName) {
+      console.warn('Could not extract filename from URL:', url);
+      return;
+    }
+    
+    await deleteFile(bucketName, fileName);
+    console.log(`Deleted old file: ${fileName} from bucket: ${bucketName}`);
+  } catch (error) {
+    console.error('Error deleting file by URL:', error);
+    // Don't throw error to prevent upload failure if old file deletion fails
   }
 }
 

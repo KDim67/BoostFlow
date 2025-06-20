@@ -17,13 +17,12 @@ interface SettingsFormData {
   currentPassword: string;
   newPassword: string;
   confirmPassword: string;
-  emailNotifications: boolean;
   websiteNotifications: boolean;
   profilePicture: string;
 }
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('account');
   const [loading, setLoading] = useState(true);
@@ -39,7 +38,6 @@ export default function SettingsPage() {
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
-    emailNotifications: true,
     websiteNotifications: true,
     profilePicture: ''
   });
@@ -48,9 +46,13 @@ export default function SettingsPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) {
+    if (!authLoading && !user) {
       router.push('/login');
       return;
+    }
+    
+    if (!user) {
+      return; // Still loading, don't fetch profile yet
     }
 
     const fetchUserProfile = async () => {
@@ -64,7 +66,6 @@ export default function SettingsPage() {
             email: profile.email || '',
             firstName: profile.firstName || '',
             lastName: profile.lastName || '',
-            emailNotifications: profile.settings?.notifications?.email ?? true,
             profilePicture: profile.profilePicture || '',
             websiteNotifications: profile.settings?.notifications?.website ?? true,
           }));
@@ -110,9 +111,27 @@ export default function SettingsPage() {
       });
 
       const result = await uploadProfilePicture(croppedFile, {
-        onSuccess: (result) => {
+        onSuccess: async (result) => {
           setFormData(prev => ({ ...prev, profilePicture: result.url }));
-          setMessage({ type: 'success', text: 'Profile picture updated successfully' });
+          
+          // Update the user profile in the database
+          if (user) {
+            try {
+              await updateUserProfile(user.uid, {
+                profilePicture: result.url,
+              });
+              
+              // Trigger navbar refresh by dispatching a custom event
+              window.dispatchEvent(new CustomEvent('profilePictureUpdated', {
+                detail: { profilePicture: result.url }
+              }));
+              
+              setMessage({ type: 'success', text: 'Profile picture updated successfully' });
+            } catch (error) {
+              console.error('Error updating profile picture in database:', error);
+              setMessage({ type: 'error', text: 'Failed to save profile picture' });
+            }
+          }
         },
         onError: (error) => {
           setMessage({ type: 'error', text: error });
@@ -136,9 +155,35 @@ export default function SettingsPage() {
     }
   };
 
-  const handleRemoveProfilePicture = () => {
-    setFormData(prev => ({ ...prev, profilePicture: '' }));
-    setMessage({ type: 'success', text: 'Profile picture removed' });
+  const handleRemoveProfilePicture = async () => {
+    if (!user) return;
+    
+    try {
+      setFormData(prev => ({ ...prev, profilePicture: '' }));
+      
+      // Call API to remove profile picture and delete file from MinIO
+      const token = await user.getIdToken();
+      const response = await fetch('/api/upload/profile-picture/remove', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to remove profile picture');
+      }
+      
+      // Trigger navbar refresh by dispatching a custom event
+      window.dispatchEvent(new CustomEvent('profilePictureUpdated', {
+        detail: { profilePicture: '' }
+      }));
+      
+      setMessage({ type: 'success', text: 'Profile picture removed' });
+    } catch (error) {
+      console.error('Error removing profile picture:', error);
+      setMessage({ type: 'error', text: 'Failed to remove profile picture' });
+    }
   };
 
 
@@ -222,7 +267,6 @@ export default function SettingsPage() {
       await updateUserProfile(user.uid, {
         settings: {
           notifications: {
-            email: formData.emailNotifications,
             website: formData.websiteNotifications
           }
         }
@@ -489,25 +533,6 @@ export default function SettingsPage() {
                     Notification Preferences
                   </h3>
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-900 dark:text-white">
-                          Email Notifications
-                        </h4>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Receive notifications about your account and activities
-                        </p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.emailNotifications}
-                          onChange={(e) => handleInputChange('emailNotifications', e.target.checked)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                      </label>
-                    </div>
                     <div className="flex items-center justify-between">
                       <div>
                         <h4 className="text-sm font-medium text-gray-900 dark:text-white">

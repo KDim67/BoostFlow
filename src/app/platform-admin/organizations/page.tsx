@@ -2,9 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { Metadata } from 'next';
-import { getAllOrganizations, updateOrganization, deleteOrganization } from '@/lib/firebase/organizationService';
+import { getAllOrganizations, updateOrganization } from '@/lib/firebase/organizationService';
 import { Organization, SubscriptionPlan } from '@/lib/types/organization';
 import { timestampToDate } from '@/lib/firebase/firestoreService';
+import { auth } from '@/lib/firebase/config';
 
 import Badge from '@/components/Badge';
 
@@ -144,7 +145,27 @@ export default function OrganizationManagementPage() {
     if (!organizationToDelete) return;
     
     try {
-      await deleteOrganization(organizationToDelete.id);
+      // Get the user's ID token for authentication
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+      
+      const token = await user.getIdToken();
+      
+      // Call the delete API endpoint
+      const response = await fetch('/api/organizations/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ organizationId: organizationToDelete.id }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete organization');
+      }
       
       const updatedOrgs = organizations.filter(o => o.id !== organizationToDelete.id);
       setOrganizations(updatedOrgs);

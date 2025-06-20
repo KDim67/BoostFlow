@@ -40,6 +40,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
+
+
     // Validate file type
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
@@ -62,26 +64,31 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Generate unique filename
-    const fileName = generateFileName(file.name, `org-${organizationId}`);
+    // Generate consistent filename for organization logos
+    const fileName = generateFileName(file.name, `org-${organizationId}`, 'logo');
 
     // Upload to MinIO
     const fileUrl = await uploadFile(
-      BUCKETS.PROFILE_PICTURES, // Using the same bucket as profile pictures
+      BUCKETS.ORGANIZATION_LOGOS,
       fileName,
       buffer,
       file.type
     );
 
+    // Add cache-busting parameter to prevent browser caching issues
+    const cacheBustedUrl = `${fileUrl}?t=${Date.now()}`;
+
     // Update organization with new logo URL
     await updateOrganization(organizationId, {
-      logoUrl: fileUrl,
+      logoUrl: cacheBustedUrl,
       updatedAt: new Date(),
     });
 
+
+
     return NextResponse.json({
       success: true,
-      url: fileUrl,
+      url: cacheBustedUrl,
       message: 'Organization logo uploaded successfully',
     });
   } catch (error) {

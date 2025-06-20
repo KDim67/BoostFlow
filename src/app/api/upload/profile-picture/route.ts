@@ -21,6 +21,8 @@ export async function POST(request: NextRequest) {
     const decodedToken = await auth.verifyIdToken(token);
     const userId = decodedToken.uid;
 
+
+
     // Parse the form data
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -51,8 +53,8 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Generate unique filename
-    const fileName = generateFileName(file.name, userId);
+    // Generate consistent filename for profile pictures
+    const fileName = generateFileName(file.name, userId, 'profile');
 
     // Upload to MinIO
     const fileUrl = await uploadFile(
@@ -62,15 +64,20 @@ export async function POST(request: NextRequest) {
       file.type
     );
 
+    // Add cache-busting parameter to prevent browser caching issues
+    const cacheBustedUrl = `${fileUrl}?t=${Date.now()}`;
+
     // Update user profile with new picture URL
     await updateUserProfile(userId, {
-      profilePicture: fileUrl,
+      profilePicture: cacheBustedUrl,
       updatedAt: new Date(),
     });
 
+
+
     return NextResponse.json({
       success: true,
-      url: fileUrl,
+      url: cacheBustedUrl,
       message: 'Profile picture uploaded successfully',
     });
   } catch (error) {

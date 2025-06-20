@@ -218,7 +218,24 @@ export default function ProjectDocumentsPage() {
     }
 
     try {
-      await deleteDocument('project-documents', document.id);
+      const token = await user?.getIdToken();
+      if (!token) {
+        throw new Error('No authentication token');
+      }
+
+      const response = await fetch('/api/files/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ documentId: document.id }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete document');
+      }
+
       setDocuments(prev => prev.filter(doc => doc.id !== document.id));
     } catch (error) {
       console.error('Error deleting document:', error);

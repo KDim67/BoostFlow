@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/firebase/useAuth';
-import { getOrganization, hasOrganizationPermission, updateOrganization, getOrganizationMembers, updateOrganizationMembership, deleteOrganization } from '@/lib/firebase/organizationService';
+import { getOrganization, hasOrganizationPermission, updateOrganization, getOrganizationMembers, updateOrganizationMembership } from '@/lib/firebase/organizationService';
 import { Organization, OrganizationMembership } from '@/lib/types/organization';
 import { useFileUpload } from '@/lib/hooks/useFileUpload';
 import ImageCropper, { getCroppedImg } from '@/components/ui/ImageCropper';
@@ -256,7 +256,23 @@ export default function OrganizationSettings() {
 
     setIsDeleting(true);
     try {
-      await deleteOrganization(organizationId);
+      // Get the user's ID token for authentication
+      const token = await user.getIdToken();
+      
+      // Call the delete API endpoint
+      const response = await fetch('/api/organizations/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ organizationId }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete organization');
+      }
+      
       setSuccessMessage('Organization deleted successfully!');
       setShowDeleteModal(false);
 

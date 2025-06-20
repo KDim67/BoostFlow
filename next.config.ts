@@ -21,11 +21,12 @@ const nextConfig: NextConfig = {
         http: false,
         https: false,
         zlib: false,
+        minio: false,
       };
     }
     return config;
   },
-  serverExternalPackages: ['firebase-admin'],
+  serverExternalPackages: ['firebase-admin', 'minio'],
   experimental: {
   },
   transpilePackages: [

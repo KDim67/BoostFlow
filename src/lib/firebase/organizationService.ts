@@ -125,8 +125,13 @@ export const updateOrganization = async (
 
 export const deleteOrganization = async (organizationId: string): Promise<void> => {
   try {
+    // Get organization data to check for logo before deletion
+    const organization = await getOrganization(organizationId);
+    
+    // Delete organization document
     await deleteDocument(ORGANIZATIONS_COLLECTION, organizationId);
     
+    // Delete all memberships
     const memberships = await queryDocuments(MEMBERSHIPS_COLLECTION, [
       where('organizationId', '==', organizationId)
     ]);
