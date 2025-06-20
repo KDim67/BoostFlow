@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/firebase/useAuth';
 import { useOrganization } from '@/lib/firebase/OrganizationProvider';
@@ -11,12 +11,15 @@ export default function OrganizationSelector() {
   const [isOpen, setIsOpen] = useState(false);
   const { user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const { 
     activeOrganization, 
     organizations, 
     isLoading, 
     setActiveOrganization 
   } = useOrganization();
+
+  const isOnOrganizationsPage = pathname === '/organizations';
 
   const handleOrganizationSelect = (org: OrganizationWithDetails) => {
     setActiveOrganization(org);
@@ -49,20 +52,22 @@ className="block px-4 py-2 text-sm text-blue-600 hover:text-blue-800 dark:text-b
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
       >
-        {activeOrganization?.logoUrl ? (
-          <img 
-            src={activeOrganization.logoUrl} 
-            alt={activeOrganization.name} 
-            className="w-6 h-6 rounded-full" 
-          />
-        ) : (
-          <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
-            <span className="text-blue-600 font-semibold text-xs">
-              {activeOrganization?.name.substring(0, 2).toUpperCase() || 'OR'}
-            </span>
-          </div>
+        {!isOnOrganizationsPage && (
+          activeOrganization?.logoUrl ? (
+            <img 
+              src={activeOrganization.logoUrl} 
+              alt={activeOrganization.name} 
+              className="w-6 h-6 rounded-full" 
+            />
+          ) : (
+            <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+              <span className="text-blue-600 font-semibold text-xs">
+                {activeOrganization?.name.substring(0, 2).toUpperCase() || 'OR'}
+              </span>
+            </div>
+          )
         )}
-        <span>{activeOrganization?.name || 'Select Organization'}</span>
+        <span>{isOnOrganizationsPage ? 'Manage Organizations' : (activeOrganization?.name || 'Select Organization')}</span>
         <svg 
           className={`w-4 h-4 transition-transform ${isOpen ? 'transform rotate-180' : ''}`} 
           fill="none" 

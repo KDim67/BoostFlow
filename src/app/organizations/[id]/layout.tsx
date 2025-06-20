@@ -295,7 +295,7 @@ export default function OrganizationLayout({
               {pathname?.endsWith('/projects') ? (
                 <span className="text-gray-900 dark:text-white font-medium">Projects</span>
               ) : (
-                <Link href={`/organizations/${organizationId}/projects`} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
+                <Link href={`/organizations/${organizationId}`} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
                   Projects
                 </Link>
               )}

@@ -54,7 +54,7 @@ export default function NewWorkflowPage() {
   }, [user, organizationId, projectIdString]);
 
   const handleBack = () => {
-    router.push(`/organizations/${organizationId}/projects/${projectIdString}/automation`);
+    router.push(`/organizations/${organizationId}/projects/${projectIdString}`);
   };
 
   if (isLoading) {
@@ -79,7 +79,7 @@ export default function NewWorkflowPage() {
           className="inline-flex items-center px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Automation
+          Back
         </button>
       </div>
     );
@@ -95,7 +95,7 @@ export default function NewWorkflowPage() {
               className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Workflows
+              Back
             </button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create New Manual Workflow</h1>

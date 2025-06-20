@@ -66,9 +66,11 @@ export default function FeaturesPage() {
             <div className="md:w-1/2 order-1 md:order-2 mb-8 md:mb-0">
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-4 relative">
                 <div className="aspect-video relative rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
-                  <div className="absolute inset-0 flex items-center justify-center text-gray-400 dark:text-gray-500">
-                    <p className="text-center">Task Automation Preview</p>
-                  </div>
+                  <img 
+                    src="/previews/workflow-preview.png" 
+                    alt="BoostFlow Task Automation Preview" 
+                    className="w-full h-full object-cover transition-transform duration-300 ease-in-out hover:scale-105"
+                  />
                 </div>
               </div>
             </div>
@@ -79,9 +81,11 @@ export default function FeaturesPage() {
             <div className="md:w-1/2 mb-8 md:mb-0">
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-4 relative">
                 <div className="aspect-video relative rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
-                  <div className="absolute inset-0 flex items-center justify-center text-gray-400 dark:text-gray-500">
-                    <p className="text-center">Analytics Dashboard Preview</p>
-                  </div>
+                  <img 
+                    src="/previews/ai-analytics-preview.png" 
+                    alt="BoostFlow AI Analytics Preview" 
+                    className="w-full h-full object-cover transition-transform duration-300 ease-in-out hover:scale-105"
+                  />
                 </div>
               </div>
             </div>
@@ -162,9 +166,11 @@ export default function FeaturesPage() {
             <div className="md:w-1/2 order-1 md:order-2 mb-8 md:mb-0">
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-4 relative">
                 <div className="aspect-video relative rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
-                  <div className="absolute inset-0 flex items-center justify-center text-gray-400 dark:text-gray-500">
-                    <p className="text-center">Collaboration Tools Preview</p>
-                  </div>
+                  <img 
+                    src="/previews/communication-hub-preview.png" 
+                    alt="BoostFlow Communication Hub Preview" 
+                    className="w-full h-full object-cover transition-transform duration-300 ease-in-out hover:scale-105"
+                  />
                 </div>
               </div>
             </div>

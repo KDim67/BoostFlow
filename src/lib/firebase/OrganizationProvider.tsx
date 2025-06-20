@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { useAuth } from './useAuth';
 import { getUserOrganizations, getOrganization } from './organizationService';
 import { Organization, OrganizationWithDetails } from '../types/organization';
@@ -22,6 +23,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const pathname = usePathname();
 
   const refreshOrganizations = async () => {
     if (!user) {
@@ -38,6 +40,20 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       const userOrgs = await getUserOrganizations(user.uid);
       setOrganizations(userOrgs);
       
+      // Check if we're on an organization-specific page
+      const orgIdFromUrl = pathname?.match(/\/organizations\/([^/]+)/)?.[1];
+      
+      if (orgIdFromUrl) {
+        // If URL contains organization ID, prioritize that
+        const urlOrg = userOrgs.find(org => org.id === orgIdFromUrl);
+        if (urlOrg) {
+          setActiveOrganization(urlOrg);
+          localStorage.setItem('lastActiveOrganization', urlOrg.id);
+          return;
+        }
+      }
+      
+      // Fallback to localStorage or first organization
       const lastActiveOrgId = localStorage.getItem('lastActiveOrganization');
       
       if (lastActiveOrgId) {
@@ -66,7 +82,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     refreshOrganizations();
-  }, [user]);
+  }, [user, pathname]);
 
   const handleSetActiveOrganization = (organization: OrganizationWithDetails) => {
     setActiveOrganization(organization);

@@ -55,7 +55,7 @@ export default function WorkflowEditPage() {
   }, [user, organizationId, projectIdString]);
 
   const handleBack = () => {
-    router.push(`/organizations/${organizationId}/projects/${projectIdString}/automation`);
+    router.push(`/organizations/${organizationId}/projects/${projectIdString}`);
   };
 
   if (isLoading) {
@@ -96,7 +96,7 @@ export default function WorkflowEditPage() {
               className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Workflows
+              Back
             </button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Manual Workflow</h1>

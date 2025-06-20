@@ -39,9 +39,11 @@ export default function Home() {
             <div className="md:w-1/2 relative">
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-4 md:p-8 relative z-10">
                 <div className="aspect-video relative rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
-                  <div className="absolute inset-0 flex items-center justify-center text-gray-400 dark:text-gray-500">
-                    <p className="text-center">Dashboard Preview</p>
-                  </div>
+                  <img 
+                    src="/previews/organizations-preview.png" 
+                    alt="BoostFlow Organizations Preview" 
+                    className="w-full h-full object-cover transition-transform duration-300 ease-in-out hover:scale-105"
+                  />
                 </div>
               </div>
               <div className="absolute -bottom-6 -right-6 w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl -z-10"></div>

@@ -553,7 +553,28 @@ export default function OrganizationMembers() {
                 <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
               </tr>
               <tr>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">View projects & documents</td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+              </tr>
+              <tr>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Create projects</td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
+              </tr>
+              <tr>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Upload project documents</td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
+              </tr>
+              <tr>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Access automation & workflows</td>
                 <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
                 <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
                 <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
@@ -567,9 +588,44 @@ export default function OrganizationMembers() {
                 <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
               </tr>
               <tr>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Manage integrations</td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
+              </tr>
+              <tr>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Manage billing</td>
                 <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
                 <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
+              </tr>
+              <tr>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Edit member roles</td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><span className="text-xs text-gray-500">Limited</span></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
+              </tr>
+              <tr>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Remove members</td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><span className="text-xs text-gray-500">Limited</span></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
+              </tr>
+              <tr>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Organization settings</td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
+              </tr>
+              <tr>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Transfer ownership</td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
                 <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
                 <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
               </tr>
