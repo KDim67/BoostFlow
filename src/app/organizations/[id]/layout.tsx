@@ -136,6 +136,10 @@ export default function OrganizationLayout({
               logoUrl: result.url
             });
           }
+          // Dispatch event to update organization logo across the app
+          window.dispatchEvent(new CustomEvent('organizationLogoUpdated', {
+            detail: { organizationId, logoUrl: result.url }
+          }));
           setShowImageUpload(false);
         },
         onError: (error) => {

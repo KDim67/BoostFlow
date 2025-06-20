@@ -49,6 +49,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Organization logo removed successfully',
+      logoUrl: '' // Return empty logoUrl for frontend updates
     });
   } catch (error) {
     console.error('Error removing organization logo:', error);

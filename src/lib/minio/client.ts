@@ -189,12 +189,21 @@ export async function listFiles(bucketName: string, prefix?: string): Promise<an
 // Extract filename from MinIO URL
 export function extractFileNameFromUrl(url: string): string | null {
   try {
+    // Remove cache-busting parameters first
+    const cleanUrl = url.split('?')[0];
+    
     // Handle both external and internal endpoint formats
-    const urlObj = new URL(url);
+    const urlObj = new URL(cleanUrl);
     const pathParts = urlObj.pathname.split('/');
     
     // URL format: http://endpoint/bucket/filename
-    if (pathParts.length >= 3) {
+    // or http://endpoint/minio/bucket/filename (with nginx proxy)
+    if (pathParts.includes('minio') && pathParts.length >= 4) {
+      // Handle nginx proxy format: /minio/bucket/filename
+      const minioIndex = pathParts.indexOf('minio');
+      return pathParts.slice(minioIndex + 2).join('/'); // Skip 'minio' and bucket
+    } else if (pathParts.length >= 3) {
+      // Handle direct format: /bucket/filename
       return pathParts.slice(2).join('/'); // Join in case filename has slashes
     }
     

@@ -137,6 +137,10 @@ export default function OrganizationSettings() {
               logoUrl: result.url
             });
           }
+          // Dispatch event to update organization logo across the app
+          window.dispatchEvent(new CustomEvent('organizationLogoUpdated', {
+            detail: { organizationId, logoUrl: result.url }
+          }));
           setShowImageCropper(false);
           setSelectedImage(null);
           // Clean up the preview URL
@@ -178,6 +182,26 @@ export default function OrganizationSettings() {
         throw new Error('Organization ID is required');
       }
 
+      // Handle logo removal if logoUrl was cleared
+      if (organization?.logoUrl && !formData.logoUrl) {
+        const response = await fetch(`/api/upload/organization-logo/remove`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ organizationId }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to remove organization logo');
+        }
+
+        // Dispatch event to update organization logo across the app
+        window.dispatchEvent(new CustomEvent('organizationLogoUpdated', {
+          detail: { organizationId, logoUrl: '' }
+        }));
+      }
+
       await updateOrganization(organizationId, {
         name: formData.name,
         description: formData.description
@@ -187,7 +211,8 @@ export default function OrganizationSettings() {
         setOrganization({
           ...organization,
           name: formData.name,
-          description: formData.description
+          description: formData.description,
+          logoUrl: formData.logoUrl
         });
       }
 

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/firebase/useAuth';
 import { useOrganization } from '@/lib/firebase/OrganizationProvider';

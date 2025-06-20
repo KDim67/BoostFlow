@@ -84,6 +84,29 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     refreshOrganizations();
   }, [user, pathname]);
 
+  // Listen for organization logo updates
+  useEffect(() => {
+    const handleLogoUpdate = (event: CustomEvent) => {
+      const { organizationId, logoUrl } = event.detail;
+      
+      // Update organizations list
+      setOrganizations(prev => prev.map(org => 
+        org.id === organizationId ? { ...org, logoUrl } : org
+      ));
+      
+      // Update active organization if it matches
+      setActiveOrganization(prev => 
+        prev?.id === organizationId ? { ...prev, logoUrl } : prev
+      );
+    };
+
+    window.addEventListener('organizationLogoUpdated', handleLogoUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('organizationLogoUpdated', handleLogoUpdate as EventListener);
+    };
+  }, []);
+
   const handleSetActiveOrganization = (organization: OrganizationWithDetails) => {
     setActiveOrganization(organization);
     localStorage.setItem('lastActiveOrganization', organization.id);
