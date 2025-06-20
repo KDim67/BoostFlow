@@ -50,7 +50,7 @@ export default function SettingsPage() {
       router.push('/login');
       return;
     }
-    
+
     if (!user) {
       return; // Still loading, don't fetch profile yet
     }
@@ -113,19 +113,19 @@ export default function SettingsPage() {
       const result = await uploadProfilePicture(croppedFile, {
         onSuccess: async (result) => {
           setFormData(prev => ({ ...prev, profilePicture: result.url }));
-          
+
           // Update the user profile in the database
           if (user) {
             try {
               await updateUserProfile(user.uid, {
                 profilePicture: result.url,
               });
-              
+
               // Trigger navbar refresh by dispatching a custom event
               window.dispatchEvent(new CustomEvent('profilePictureUpdated', {
                 detail: { profilePicture: result.url }
               }));
-              
+
               setMessage({ type: 'success', text: 'Profile picture updated successfully' });
             } catch (error) {
               console.error('Error updating profile picture in database:', error);
@@ -157,10 +157,10 @@ export default function SettingsPage() {
 
   const handleRemoveProfilePicture = async () => {
     if (!user) return;
-    
+
     try {
       setFormData(prev => ({ ...prev, profilePicture: '' }));
-      
+
       // Call API to remove profile picture and delete file from MinIO
       const token = await user.getIdToken();
       const response = await fetch('/api/upload/profile-picture/remove', {
@@ -169,16 +169,16 @@ export default function SettingsPage() {
           'Authorization': `Bearer ${token}`,
         },
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to remove profile picture');
       }
-      
+
       // Trigger navbar refresh by dispatching a custom event
       window.dispatchEvent(new CustomEvent('profilePictureUpdated', {
         detail: { profilePicture: '' }
       }));
-      
+
       setMessage({ type: 'success', text: 'Profile picture removed' });
     } catch (error) {
       console.error('Error removing profile picture:', error);
