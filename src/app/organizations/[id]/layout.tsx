@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/firebase/useAuth';
 import { getOrganization, hasOrganizationPermission } from '@/lib/firebase/organizationService';
+import { getDocument } from '@/lib/firebase/firestoreService';
 import { Organization } from '@/lib/types/organization';
 import { useFileUpload } from '@/lib/hooks/useFileUpload';
+import Badge from '@/components/Badge';
 
 export default function OrganizationLayout({
   children,
@@ -22,8 +24,14 @@ export default function OrganizationLayout({
   const [showImageUpload, setShowImageUpload] = useState(false);
   const { user } = useAuth();
   const { uploading, uploadOrganizationLogo } = useFileUpload();
+  const [projectName, setProjectName] = useState<string>('');
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const organizationId = Array.isArray(id) ? id[0] : id;
+
+  const isProjectPage = pathname?.includes('/projects/') && pathname?.split('/').length > 4;
+  const projectId = isProjectPage ? pathname?.split('/')[4] : null;
 
   useEffect(() => {
     const fetchOrganizationData = async () => {
@@ -41,10 +49,16 @@ export default function OrganizationLayout({
           setIsLoading(false);
           return;
         }
-        
-        // Fetch organization details
+
         const orgData = await getOrganization(organizationId);
         setOrganization(orgData);
+
+        if (isProjectPage && projectId) {
+          const projectData = await getDocument('projects', projectId);
+          if (projectData) {
+            setProjectName(projectData.name);
+          }
+        }
       } catch (error) {
         console.error('Error fetching organization data:', error);
         setError('Failed to load organization data. Please try again.');
@@ -53,8 +67,62 @@ export default function OrganizationLayout({
       }
     };
 
-    fetchOrganizationData();
-  }, [user, organizationId]);
+    if (!authLoading) {
+      fetchOrganizationData();
+    }
+  }, [user, organizationId, isProjectPage, projectId, authLoading]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center items-center">
+        <div className="relative">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 dark:border-blue-800"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent absolute top-0 left-0"></div>
+        </div>
+        <p className="mt-4 text-gray-600 dark:text-gray-400 font-medium">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center items-center">
+        <div className="max-w-md mx-auto text-center">
+          <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-red-100 to-orange-100 dark:from-red-900/30 dark:to-orange-900/30 rounded-full flex items-center justify-center">
+            <svg className="w-12 h-12 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold mb-3 text-gray-900 dark:text-white">
+            Authentication Required
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6 leading-relaxed">
+            You need to be logged in to view this organization. Please sign in to continue.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-blue-500/25"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+              </svg>
+              Sign In
+            </Link>
+            <Link
+              href="/signup"
+              className="inline-flex items-center gap-2 px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all focus:outline-none focus:ring-2 focus:ring-gray-500/25"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+              </svg>
+              Create Account
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -84,8 +152,12 @@ export default function OrganizationLayout({
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex justify-center items-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center items-center">
+        <div className="relative">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 dark:border-blue-800"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent absolute top-0 left-0"></div>
+        </div>
+        <p className="mt-4 text-gray-600 dark:text-gray-400 font-medium">Loading organization...</p>
       </div>
     );
   }
@@ -114,25 +186,6 @@ export default function OrganizationLayout({
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4 py-8">
-        {/* Breadcrumb Navigation */}
-        <nav className="mb-6 text-sm">
-          <ol className="flex items-center space-x-2">
-            <li>
-              <Link href="/dashboard" className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
-                Dashboard
-              </Link>
-            </li>
-            <li className="text-gray-500 dark:text-gray-400">/</li>
-            <li>
-              <Link href="/organizations" className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
-                Organizations
-              </Link>
-            </li>
-            <li className="text-gray-500 dark:text-gray-400">/</li>
-            <li className="text-gray-900 dark:text-white font-medium">{organization.name}</li>
-          </ol>
-        </nav>
-
         {/* Organization Header */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
           <div className="flex items-center justify-between">
@@ -147,7 +200,7 @@ export default function OrganizationLayout({
                     </span>
                   </div>
                 )}
-                
+
                 {/* Upload overlay for users with access */}
                 {hasPermission && (
                   <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center cursor-pointer"
@@ -159,7 +212,20 @@ export default function OrganizationLayout({
                   </div>
                 )}
               </div>
-              
+            )}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{organization.name}</h1>
+              {organization.description && (
+                <p className="text-gray-600 dark:text-gray-400 mt-1">{organization.description}</p>
+              )}
+              <div className="mt-2">
+                <Badge
+                  type="plan"
+                  value={organization.plan}
+                  size="sm"
+                  variant="with-icon"
+                />
+
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{organization.name}</h1>
                 {organization.description && (
@@ -172,7 +238,7 @@ export default function OrganizationLayout({
                 </div>
               </div>
             </div>
-            
+
             {/* Quick upload button for users with access */}
             {hasPermission && (
               <button
@@ -183,7 +249,7 @@ export default function OrganizationLayout({
               </button>
             )}
           </div>
-          
+
           {/* Image Upload Modal */}
           {showImageUpload && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -191,7 +257,7 @@ export default function OrganizationLayout({
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                   Upload Organization Logo
                 </h3>
-                
+
                 <div className="space-y-4">
                   <input
                     type="file"
@@ -201,11 +267,11 @@ export default function OrganizationLayout({
                     disabled={uploading}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   />
-                  
+
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     PNG, JPG, GIF up to 5MB. Recommended size: 256x256px
                   </p>
-                  
+
                   <div className="flex justify-end space-x-3">
                     <button
                       onClick={() => setShowImageUpload(false)}
@@ -215,7 +281,7 @@ export default function OrganizationLayout({
                       Cancel
                     </button>
                   </div>
-                  
+
                   {uploading && (
                     <div className="flex items-center justify-center">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
@@ -227,6 +293,33 @@ export default function OrganizationLayout({
             </div>
           )}
         </div>
+
+        {/* Breadcrumb Navigation */}
+        <nav className="text-sm mb-6">
+          <ol className="flex items-center space-x-2">
+            <li>
+              <Link href="/organizations" className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
+                Organizations
+              </Link>
+            </li>
+            <li className="text-gray-500 dark:text-gray-400">/</li>
+            <li>
+              {pathname?.endsWith('/projects') ? (
+                <span className="text-gray-900 dark:text-white font-medium">Projects</span>
+              ) : (
+                <Link href={`/organizations/${organizationId}/projects`} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
+                  Projects
+                </Link>
+              )}
+            </li>
+            {isProjectPage && projectName ? (
+              <>
+                <li className="text-gray-500 dark:text-gray-400">/</li>
+                <li className="text-gray-900 dark:text-white font-medium">{projectName}</li>
+              </>
+            ) : null}
+          </ol>
+        </nav>
 
         {/* Organization Content */}
         {children}

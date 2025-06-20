@@ -17,6 +17,7 @@ import {
   getProviderScopes,
   OAuthConfig
 } from '@/lib/services/integration/oauthHelpers';
+import Badge from '@/components/Badge';
 
 interface PersonalIntegrationsProps {
   currentUser: string;
@@ -217,13 +218,7 @@ export default function PersonalIntegrations({
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    int.status === 'active' 
-                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                      : 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
-                  }`}>
-                    {int.status}
-                  </span>
+                  <Badge type="status" value={int.status} size="sm" />
                   <button
                     onClick={() => {
                       setIntegration(int);
@@ -311,9 +306,7 @@ export default function PersonalIntegrations({
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{integration.name}</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">{integration.description}</p>
           <div className="mt-1 flex items-center">
-            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${integration.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'}`}>
-              {integration.status === 'active' ? 'Active' : integration.status === 'error' ? 'Error' : 'Inactive'}
-            </span>
+            <Badge type="status" value={integration.status} size="sm" />
             <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
               Last synced: {integration.lastSyncAt ? new Date(integration.lastSyncAt).toLocaleString() : 'Never'}
             </span>

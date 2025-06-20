@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Workflow, getWorkflowsByProject, deleteWorkflow } from '@/lib/services/automation/workflowService';
+import { Workflow, getWorkflowsByProject, deleteWorkflow, executeWorkflow } from '@/lib/services/automation/workflowService';
 import { getUserProfile, UserProfile } from '@/lib/firebase/userProfileService';
 import { Play, Edit, Trash2, Plus, Clock, User, Calendar } from 'lucide-react';
 
@@ -23,6 +23,7 @@ export default function WorkflowList({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingWorkflowId, setDeletingWorkflowId] = useState<string | null>(null);
+  const [executingWorkflowId, setExecutingWorkflowId] = useState<string | null>(null);
   const [userNames, setUserNames] = useState<Record<string, string>>({});
   const router = useRouter();
 
@@ -45,9 +46,17 @@ export default function WorkflowList({
           try {
             const userProfile = await getUserProfile(userId);
             if (userProfile) {
-              userNameMap[userId] = userProfile.displayName || userProfile.firstName && userProfile.lastName 
-                ? `${userProfile.firstName} ${userProfile.lastName}`.trim()
-                : userProfile.email || userId;
+              let displayName = userProfile.displayName;
+              
+              if (!displayName && userProfile.firstName && userProfile.lastName) {
+                displayName = `${userProfile.firstName} ${userProfile.lastName}`.trim();
+              } else if (!displayName && userProfile.firstName) {
+                displayName = userProfile.firstName;
+              } else if (!displayName && userProfile.lastName) {
+                displayName = userProfile.lastName;
+              }
+              
+              userNameMap[userId] = displayName || userProfile.email || userId;
             } else {
               userNameMap[userId] = userId;
             }
@@ -88,6 +97,35 @@ export default function WorkflowList({
     }
   };
 
+  const handleRunWorkflow = async (workflow: Workflow) => {
+    if (!workflow.isActive) {
+      setError('Cannot run disabled workflow. Please enable it first.');
+      return;
+    }
+
+    try {
+      setExecutingWorkflowId(workflow.id);
+      setError(null);
+      
+      const executionContext = await executeWorkflow(workflow.id, {
+        projectId: projectId,
+        currentUser: currentUser,
+        organizationId: organizationId
+      });
+      
+      if (executionContext.status === 'completed') {
+        alert('Workflow executed successfully!');
+      } else if (executionContext.status === 'failed') {
+        setError(`Workflow execution failed: ${executionContext.error}`);
+      }
+    } catch (err) {
+      console.error('Error executing workflow:', err);
+      setError('Failed to execute workflow');
+    } finally {
+      setExecutingWorkflowId(null);
+    }
+  };
+
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat('en-US', {
       year: 'numeric',
@@ -125,10 +163,10 @@ export default function WorkflowList({
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Workflows
+            Manual Workflows
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Manage automated workflows for this project
+            Create workflows that run when you need them - all workflows require manual execution
           </p>
         </div>
         <button
@@ -136,7 +174,7 @@ export default function WorkflowList({
           className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
         >
           <Plus className="w-4 h-4 mr-2" />
-          Create Workflow
+          Create Manual Workflow
         </button>
       </div>
 
@@ -146,17 +184,17 @@ export default function WorkflowList({
             <Play className="w-8 h-8 text-gray-400" />
           </div>
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            No workflows yet
+            No manual workflows yet
           </h3>
           <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-sm mx-auto">
-            Create your first workflow to automate tasks and processes in this project.
+            Create your first manual workflow that you can run when needed.
           </p>
           <button
             onClick={onCreateWorkflow}
             className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Create Your First Workflow
+            Create Your First Manual Workflow
           </button>
         </div>
       ) : (
@@ -175,11 +213,11 @@ export default function WorkflowList({
                     <span
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         workflow.isActive
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
                           : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400'
                       }`}
                     >
-                      {workflow.isActive ? 'Active' : 'Inactive'}
+                      {workflow.isActive ? 'Ready to Run' : 'Disabled'}
                     </span>
                   </div>
                   
@@ -204,6 +242,23 @@ export default function WorkflowList({
                 </div>
                 
                 <div className="flex items-center gap-2 ml-4">
+                  <button
+                    onClick={() => handleRunWorkflow(workflow)}
+                    disabled={!workflow.isActive || executingWorkflowId === workflow.id}
+                    className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      workflow.isActive
+                        ? 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-300 dark:border-green-600 hover:bg-green-100 dark:hover:bg-green-900/30'
+                        : 'text-gray-500 dark:text-gray-500 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600'
+                    }`}
+                  >
+                    {executingWorkflowId === workflow.id ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-green-500 mr-1"></div>
+                    ) : (
+                      <Play className="w-4 h-4 mr-1" />
+                    )}
+                    {executingWorkflowId === workflow.id ? 'Running...' : 'Run'}
+                  </button>
+                  
                   <button
                     onClick={() => handleEditWorkflow(workflow.id)}
                     className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"

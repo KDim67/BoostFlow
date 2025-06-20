@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/firebase/useAuth';
-import { getOrganization, hasOrganizationPermission, updateOrganization } from '@/lib/firebase/organizationService';
+import { getOrganization, hasOrganizationPermission, updateOrganization, getOrganizationMembers } from '@/lib/firebase/organizationService';
 import { Organization, SubscriptionPlan } from '@/lib/types/organization';
+import { NotificationService } from '@/lib/firebase/notificationService';
 
 export default function OrganizationBilling() {
   const { id } = useParams();
@@ -40,6 +41,13 @@ export default function OrganizationBilling() {
         setOrganization(orgData);
         if (orgData) {
           setSelectedPlan(orgData.plan);
+          if (orgData.subscriptionDetails?.teamSize) {
+            setTeamSize(orgData.subscriptionDetails.teamSize);
+          } else {
+            const members = await getOrganizationMembers(organizationId);
+            const activeMembers = members.filter(member => member.status === 'active');
+            setTeamSize(Math.max(activeMembers.length, orgData.plan === 'free' ? 15 : 50));
+          }
         }
       } catch (error) {
         console.error('Error fetching billing data:', error);
@@ -54,6 +62,19 @@ export default function OrganizationBilling() {
 
   const handleUpdatePlan = async () => {
     if (!organization || !organizationId) return;
+    
+    const currentMembers = await getOrganizationMembers(organizationId);
+    const activeMembers = currentMembers.filter(member => member.status === 'active');
+    
+    if (selectedPlan === 'free' && teamSize > 15) {
+      setError('Free plan is limited to 15 users. Please reduce team size or choose a different plan.');
+      return;
+    }
+    
+    if (activeMembers.length > teamSize) {
+      setError(`Cannot set team size to ${teamSize}. You currently have ${activeMembers.length} active members. Please remove members first or increase the team size.`);
+      return;
+    }
     
     setIsUpdating(true);
     try {
@@ -75,13 +96,41 @@ export default function OrganizationBilling() {
         updatedAt: new Date().toISOString()
       });
 
+      const isDowngradeChange = isDowngrade(organization.plan, selectedPlan);
+      const changeType = isDowngradeChange ? 'downgraded' : 'upgraded';
+      
+      try {
+        const members = await getOrganizationMembers(organizationId);
+        const activeMembers = members.filter(member => member.status === 'active');
+        
+        const notificationPromises = activeMembers.map(member => 
+          NotificationService.createNotification(
+            member.userId,
+            `Organization Plan ${changeType.charAt(0).toUpperCase() + changeType.slice(1)}`,
+            `Your organization's plan has been ${changeType} to ${selectedPlan}. ${isDowngradeChange ? 'Some features may no longer be available.' : 'You now have access to additional features!'}`,
+            isDowngradeChange ? 'plan_downgrade' : 'plan_upgrade',
+            organizationId,
+            `/organizations/${organizationId}/billing`,
+            {
+              previousPlan: organization.plan,
+              newPlan: selectedPlan,
+              organizationId: organizationId
+            }
+          )
+        );
+        
+        await Promise.all(notificationPromises);
+      } catch (notificationError) {
+        console.warn('Failed to send notifications to some members:', notificationError);
+      }
+
       setOrganization({
         ...organization,
         plan: selectedPlan,
         subscriptionDetails
       });
       
-      setSuccessMessage(`Successfully ${isDowngrade(organization.plan, selectedPlan) ? 'downgraded' : 'upgraded'} to ${selectedPlan} plan!`);
+      setSuccessMessage(`Successfully ${changeType} to ${selectedPlan} plan!`);
       setError(null);
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (error) {
@@ -223,7 +272,7 @@ export default function OrganizationBilling() {
           {error || 'Organization not found'}
         </h2>
         <p className="text-gray-600 dark:text-gray-400 mb-6">
-          The organization you're looking for doesn't exist or you don't have permission to view it.
+          {error || "The organization you're looking for doesn't exist or you don't have permission to view it."}
         </p>
         <Link 
           href="/organizations"
@@ -338,12 +387,12 @@ export default function OrganizationBilling() {
                     onChange={(e) => setTeamSize(parseInt(e.target.value))}
                     className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
                   />
-                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 px-1 mt-1">
-                    <span>1</span>
-                    <span>250</span>
-                    <span>500</span>
-                    <span>750</span>
-                    <span>1000</span>
+                  <div className="relative mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    <span className="absolute left-0">1</span>
+                    <span className="absolute -translate-x-1/2 left-1/4">250</span>
+                    <span className="absolute -translate-x-1/2 left-1/2">500</span>
+                    <span className="absolute -translate-x-1/2 left-3/4">750</span>
+                    <span className="absolute -translate-x-full left-full">1000</span>
                   </div>
                 </div>
                 {getCurrentDiscount() > 0 && (
@@ -548,31 +597,14 @@ export default function OrganizationBilling() {
             </button>
             {selectedPlan === 'free' && teamSize > 15 && (
               <p className="text-red-600 dark:text-red-400 text-sm mt-2">
-                Cannot downgrade to free plan with more than 15 users. Please reduce team size first.
+                Cannot select free plan with more than 15 users. Please reduce team size to 15 or less.
               </p>
             )}
           </div>
         )}
       </div>
 
-      {/* Payment Methods */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Payment Methods</h2>
-        <p className="text-gray-600 dark:text-gray-400 mb-4">
-          Add or update your payment methods to manage your subscription.
-        </p>
-        <button className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-          Add Payment Method
-        </button>
-      </div>
 
-      {/* Billing History */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Billing History</h2>
-        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-          <p>No billing history available yet.</p>
-        </div>
-      </div>
     </div>
   );
 }

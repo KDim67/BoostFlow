@@ -2,10 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { Metadata } from 'next';
-import { getAllOrganizations, updateOrganization } from '@/lib/firebase/organizationService';
-import { Organization } from '@/lib/types/organization';
+import { getAllOrganizations, updateOrganization, deleteOrganization } from '@/lib/firebase/organizationService';
+import { Organization, SubscriptionPlan } from '@/lib/types/organization';
 import { timestampToDate } from '@/lib/firebase/firestoreService';
-import { CSVLink } from 'react-csv';
+
+import Badge from '@/components/Badge';
 
 export default function OrganizationManagementPage() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -18,27 +19,14 @@ export default function OrganizationManagementPage() {
   const [statusFilter, setStatusFilter] = useState<string>('');
   
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
+  const [pageSize, setPageSize] = useState<number>(5);
+  const [paginatedOrganizations, setPaginatedOrganizations] = useState<Organization[]>([]);
+  const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
+  const [organizationToDelete, setOrganizationToDelete] = useState<Organization | null>(null);
+  const [isManageModalOpen, setIsManageModalOpen] = useState<boolean>(false);
+  const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
   
-  const getCsvData = () => {
-    return filteredOrganizations.map(org => ({
-      Name: org.name,
-      Plan: org.plan,
-      Users: org.memberCount || 0,
-      Status: org.suspended ? 'Suspended' : 'Active',
-      Created: org.createdAt ? formatDate(org.createdAt) : 'N/A',
-      Storage: `${org.storageUsed || 0} GB / ${org.planFeatures?.maxStorage || 0} GB`
-    }));
-  };
 
-  const csvHeaders = [
-    { label: 'Name', key: 'Name' },
-    { label: 'Plan', key: 'Plan' },
-    { label: 'Users', key: 'Users' },
-    { label: 'Status', key: 'Status' },
-    { label: 'Created', key: 'Created' },
-    { label: 'Storage', key: 'Storage' }
-  ];
 
   useEffect(() => {
     const fetchOrganizations = async () => {
@@ -61,6 +49,14 @@ export default function OrganizationManagementPage() {
   useEffect(() => {
     applyFilters();
   }, [searchQuery, planFilter, statusFilter, organizations]);
+
+  useEffect(() => {
+    applyPagination();
+  }, [filteredOrganizations, currentPage, pageSize]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [pageSize]);
 
   const applyFilters = () => {
     let result = [...organizations];
@@ -87,6 +83,25 @@ export default function OrganizationManagementPage() {
     }
     
     setFilteredOrganizations(result);
+    setCurrentPage(1);
+  };
+
+  const applyPagination = () => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    setPaginatedOrganizations(filteredOrganizations.slice(startIndex, endIndex));
+  };
+
+  const totalPages = Math.ceil(filteredOrganizations.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize + 1;
+  const endIndex = Math.min(currentPage * pageSize, filteredOrganizations.length);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
   };
 
   const formatDate = (timestamp: any) => {
@@ -120,31 +135,60 @@ export default function OrganizationManagementPage() {
     }
   };
 
+  const handleDeleteOrganization = async (org: Organization) => {
+    setOrganizationToDelete(org);
+    setDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!organizationToDelete) return;
+    
+    try {
+      await deleteOrganization(organizationToDelete.id);
+      
+      const updatedOrgs = organizations.filter(o => o.id !== organizationToDelete.id);
+      setOrganizations(updatedOrgs);
+      applyFilters();
+      setDeleteModalOpen(false);
+      setOrganizationToDelete(null);
+    } catch (err) {
+      console.error('Error deleting organization:', err);
+      alert('Failed to delete organization. Please try again.');
+    }
+  };
+
+  const handlePlanChange = async (organizationId: string, newPlan: SubscriptionPlan) => {
+    try {
+      await updateOrganization(organizationId, { 
+        plan: newPlan,
+        updatedAt: new Date()
+      });
+      
+      const updatedOrgs = organizations.map(org => {
+        if (org.id === organizationId) {
+          return { ...org, plan: newPlan, updatedAt: new Date() };
+        }
+        return org;
+      });
+      
+      setOrganizations(updatedOrgs);
+      applyFilters();
+      setIsManageModalOpen(false);
+      setSelectedOrganization(null);
+    } catch (err) {
+      console.error('Error updating organization plan:', err);
+      alert('Failed to update organization plan. Please try again.');
+    }
+  };
+
+
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Organization Management</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage organizations and their resources</p>
-        </div>
-        <div className="flex space-x-3">
-          <CSVLink 
-            data={getCsvData()} 
-            headers={csvHeaders}
-            filename={`organizations-export-${new Date().toISOString().split('T')[0]}.csv`}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            Export Data
-          </CSVLink>
-          <button className="inline-flex items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            Add Organization
-          </button>
         </div>
       </div>
 
@@ -213,8 +257,22 @@ export default function OrganizationManagementPage() {
 
       {/* Organizations Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+        <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 flex justify-between items-center">
           <h2 className="text-base font-medium text-gray-900 dark:text-white">Organizations</h2>
+          <div className="flex items-center space-x-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Show:</label>
+            <select 
+              className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm"
+              value={pageSize}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={15}>15</option>
+              <option value={20}>20</option>
+            </select>
+            <span className="text-sm text-gray-700 dark:text-gray-300">per page</span>
+          </div>
         </div>
         {loading ? (
           <div className="p-8 text-center">
@@ -245,17 +303,15 @@ export default function OrganizationManagementPage() {
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Created
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Storage
-                </th>
+
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredOrganizations.length > 0 ? (
-                  filteredOrganizations.map((org) => (
+                {paginatedOrganizations.length > 0 ? (
+                  paginatedOrganizations.map((org) => (
                 <tr key={org.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -274,46 +330,45 @@ export default function OrganizationManagementPage() {
                     {org.memberCount || 0}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      org.suspended ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : 
-                      org.onTrial ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' : 
-                      'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                    }`}>
-                      {org.suspended ? 'Suspended' : org.onTrial ? 'Trial' : 'Active'}
-                    </span>
+                    <Badge 
+                      type="status" 
+                      value={org.suspended ? 'suspended' : org.onTrial ? 'pending' : 'active'} 
+                      size="sm" 
+                    />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                     {formatDate(org.createdAt)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    <div>
-                      {`${org.storageUsed || 0} GB / ${org.planFeatures?.maxStorage || 0} GB`}
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-1">
-                        <div 
-                          className={`h-2 rounded-full ${
-                            (org.storageUsed || 0) / (org.planFeatures?.maxStorage || 1) > 0.8 ? 'bg-yellow-500' :
-                            (org.storageUsed || 0) / (org.planFeatures?.maxStorage || 1) > 0.6 ? 'bg-green-500' : 'bg-blue-500'
-                          }`} 
-                          style={{ width: `${Math.min(((org.storageUsed || 0) / (org.planFeatures?.maxStorage || 1)) * 100, 100)}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  </td>
+
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 mr-3">Manage</button>
+                    <button 
+                      onClick={() => {
+                        setSelectedOrganization(org);
+                        setIsManageModalOpen(true);
+                      }}
+                      className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 mr-3"
+                    >
+                      Manage
+                    </button>
                     <button 
                       onClick={() => handleSuspendOrganization(org)}
-                      className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
+                      className="text-yellow-600 dark:text-yellow-400 hover:text-yellow-900 dark:hover:text-yellow-300 mr-3"
                     >
                       {org.suspended ? 'Unsuspend' : 'Suspend'}
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteOrganization(org)}
+                      className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
+                    >
+                      Remove
                     </button>
                   </td>
                 </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={7} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
-                      No organizations found
+                    <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                      {filteredOrganizations.length === 0 ? 'No organizations found' : 'No organizations on this page'}
                     </td>
                   </tr>
                 )}
@@ -325,30 +380,55 @@ export default function OrganizationManagementPage() {
         {/* Pagination */}
         <div className="bg-white dark:bg-gray-800 px-4 py-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 sm:px-6">
           <div className="flex-1 flex justify-between sm:hidden">
-            <button className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+            <button 
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               Previous
             </button>
-            <button className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+            <button 
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               Next
             </button>
           </div>
           <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
             <div>
               <p className="text-sm text-gray-700 dark:text-gray-300">
-                Showing <span className="font-medium">1</span> to <span className="font-medium">{filteredOrganizations.length}</span> of{' '}
+                Showing <span className="font-medium">{filteredOrganizations.length > 0 ? startIndex : 0}</span> to <span className="font-medium">{endIndex}</span> of{' '}
                 <span className="font-medium">{filteredOrganizations.length}</span> results
               </p>
             </div>
             <div>
               <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                <button className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
+                <button 
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   Previous
                 </button>
-                <button className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-indigo-50 dark:bg-indigo-900/20 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-gray-50 dark:hover:bg-gray-700">
-                  1
-                </button>
-
-                <button className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => handlePageChange(page)}
+                    className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                      page === currentPage
+                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400'
+                        : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button 
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   Next
                 </button>
               </nav>
@@ -356,6 +436,101 @@ export default function OrganizationManagementPage() {
           </div>
         </div>
       </div>
+
+      {/* Plan Management Modal */}
+      {isManageModalOpen && selectedOrganization && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Manage Organization Plan</h2>
+            <p className="text-gray-700 dark:text-gray-300 mb-4">
+              Update the subscription plan for <strong>{selectedOrganization.name}</strong>
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Current Plan</label>
+              <p className="text-lg font-semibold text-indigo-600 dark:text-indigo-400 capitalize">
+                {selectedOrganization.plan}
+              </p>
+            </div>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select New Plan</label>
+              <div className="space-y-2">
+                {(['free', 'starter', 'professional', 'enterprise'] as SubscriptionPlan[]).map((plan) => (
+                  <button
+                    key={plan}
+                    onClick={() => handlePlanChange(selectedOrganization.id, plan)}
+                    disabled={plan === selectedOrganization.plan}
+                    className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
+                      plan === selectedOrganization.plan
+                        ? 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium capitalize">{plan}</span>
+                      {plan === selectedOrganization.plan && (
+                        <span className="text-xs bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded">Current</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button 
+                onClick={() => {
+                  setIsManageModalOpen(false);
+                  setSelectedOrganization(null);
+                }}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Organization Modal */}
+      {deleteModalOpen && organizationToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-semibold mb-4 text-red-600 dark:text-red-400">Remove Organization</h2>
+            <p className="text-gray-700 dark:text-gray-300 mb-4">
+              Are you sure you want to permanently remove <strong>{organizationToDelete.name}</strong>? This action cannot be undone.
+            </p>
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3 mb-4">
+              <div className="flex">
+                <svg className="h-5 w-5 text-red-400 dark:text-red-300" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <div className="ml-3">
+                  <p className="text-sm text-red-800 dark:text-red-200">
+                    This will permanently delete the organization and all its data and cannot be recovered.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button 
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setOrganizationToDelete(null);
+                }}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                Remove Organization
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

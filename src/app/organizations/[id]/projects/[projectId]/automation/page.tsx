@@ -6,16 +6,16 @@ import { useAuth } from '@/lib/firebase/useAuth';
 import { hasOrganizationPermission, getOrganization } from '@/lib/firebase/organizationService';
 import { getDocument } from '@/lib/firebase/firestoreService';
 import WorkflowList from '@/components/dashboard/WorkflowList';
-import SchedulerManagement from '@/components/dashboard/SchedulerManagement';
+
 import { useRouter } from 'next/navigation';
 import { Organization, Project } from '@/lib/types/organization';
 
-export default function ProjectAutomationPage() {
+export default function ProjectWorkflowsPage() {
   const { id, projectId } = useParams();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'workflows' | 'scheduler'>('workflows');
+
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const { user } = useAuth();
@@ -33,7 +33,7 @@ export default function ProjectAutomationPage() {
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'member');
         
         if (!permission) {
-          setError('You do not have permission to access automation features.');
+          setError('You do not have permission to access workflows features.');
           return;
         }
 
@@ -74,7 +74,7 @@ export default function ProjectAutomationPage() {
           {error}
         </h2>
         <p className="text-gray-600 dark:text-gray-400 mb-6">
-          You need member or higher permissions to access automation features.
+          You need member or higher permissions to access workflows features.
         </p>
       </div>
     );
@@ -86,40 +86,18 @@ export default function ProjectAutomationPage() {
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{project?.name || 'Project'} Automation</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{project?.name || 'Project'} Workflows</h1>
               <p className="text-gray-500 dark:text-gray-400 mt-1">
-                Create workflows and schedule automated tasks for {project?.name || 'this project'} in {organization?.name || 'your organization'}
+                Create and manage workflows for {project?.name || 'this project'} in {organization?.name || 'your organization'}
               </p>
             </div>
           </div>
           
-          <div className="flex space-x-1 mt-4">
-            <button
-              onClick={() => setActiveTab('workflows')}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                activeTab === 'workflows'
-                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-              }`}
-            >
-              Workflows
-            </button>
-            <button
-              onClick={() => setActiveTab('scheduler')}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                activeTab === 'scheduler'
-                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-              }`}
-            >
-              Scheduled Tasks
-            </button>
 
-          </div>
         </div>
 
         <div className="p-6">
-          {user && activeTab === 'workflows' && projectIdString && (
+          {user && projectIdString && (
             <WorkflowList 
               projectId={projectIdString}
               organizationId={organizationId}
@@ -127,16 +105,6 @@ export default function ProjectAutomationPage() {
               onCreateWorkflow={handleCreateWorkflow}
             />
           )}
-          
-          {user && activeTab === 'scheduler' && projectIdString && organizationId && (
-            <SchedulerManagement
-              projectId={projectIdString}
-              organizationId={organizationId}
-              currentUser={user.uid}
-            />
-          )}
-          
-
         </div>
       </div>
     </div>

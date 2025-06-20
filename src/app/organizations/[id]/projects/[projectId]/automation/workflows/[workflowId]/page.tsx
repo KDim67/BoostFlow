@@ -99,9 +99,9 @@ export default function WorkflowEditPage() {
               Back to Workflows
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Workflow</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Manual Workflow</h1>
               <p className="text-gray-500 dark:text-gray-400 mt-1">
-                Configure and manage workflow automation for {project?.name || 'your project'} in {organization?.name || 'your organization'}
+                Configure manual workflow for {project?.name || 'your project'} in {organization?.name || 'your organization'} - runs only when you execute it
               </p>
             </div>
           </div>
@@ -113,6 +113,7 @@ export default function WorkflowEditPage() {
               workflowId={workflowIdString}
               projectId={projectIdString}
               currentUser={user.uid}
+              organizationId={organizationId}
             />
           )}
         </div>

@@ -1,22 +1,28 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/firebase/useAuth';
 import { getOrganization, hasOrganizationPermission } from '@/lib/firebase/organizationService';
-import { queryDocuments } from '@/lib/firebase/firestoreService';
+import { queryDocuments, updateDocument, deleteDocument } from '@/lib/firebase/firestoreService';
 import { where } from 'firebase/firestore';
 import { Organization, Project } from '@/lib/types/organization';
+import Badge from '@/components/Badge';
 
 export default function OrganizationProjects() {
   const { id } = useParams();
+  const router = useRouter();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({ name: '', description: '', status: '', startDate: '', dueDate: '', client: '', budget: '', progress: 0 });
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const { user } = useAuth();
   const organizationId = Array.isArray(id) ? id[0] : id;
 
@@ -39,9 +45,34 @@ export default function OrganizationProjects() {
         const orgData = await getOrganization(organizationId);
         setOrganization(orgData);
         
-        const projectsData = await queryDocuments('projects', [
-          where('organizationId', '==', organizationId)
-        ]);
+        const isOwnerOrAdmin = await hasOrganizationPermission(user.uid, organizationId, 'admin');
+        
+        let projectsData: any[];
+        
+        if (isOwnerOrAdmin) {
+          projectsData = await queryDocuments('projects', [
+            where('organizationId', '==', organizationId)
+          ]);
+        } else {
+          const allProjects = await queryDocuments('projects', [
+            where('organizationId', '==', organizationId)
+          ]);
+          
+          const userProjects = [];
+          for (const project of allProjects) {
+            const teamMembers = await queryDocuments('team', [
+              where('projectId', '==', project.id),
+              where('userId', '==', user.uid)
+            ]);
+            
+            if (teamMembers.length > 0) {
+              userProjects.push(project);
+            }
+          }
+          
+          projectsData = userProjects;
+        }
+        
         setProjects(projectsData as Project[]);
       } catch (error) {
         console.error('Error fetching projects data:', error);
@@ -53,6 +84,68 @@ export default function OrganizationProjects() {
 
     fetchProjectsData();
   }, [user, organizationId]);
+
+  const handleEditProject = (project: Project) => {
+    setEditingProject(project);
+    setEditForm({
+      name: project.name,
+      description: project.description || '',
+      status: project.status,
+      startDate: project.startDate || '',
+      dueDate: project.dueDate,
+      client: project.client || '',
+      budget: project.budget || '',
+      progress: project.progress
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveProject = async () => {
+    if (!editingProject || !editForm.name.trim()) return;
+
+    try {
+      await updateDocument('projects', editingProject.id, {
+        name: editForm.name.trim(),
+        description: editForm.description.trim(),
+        status: editForm.status,
+        startDate: editForm.startDate,
+        dueDate: editForm.dueDate,
+        client: editForm.client.trim(),
+        budget: editForm.budget.trim(),
+        progress: editForm.progress
+      });
+
+      setProjects(prev => prev.map(p => 
+        p.id === editingProject.id 
+          ? { ...p, ...editForm, name: editForm.name.trim(), description: editForm.description.trim(), client: editForm.client.trim(), budget: editForm.budget.trim() }
+          : p
+      ));
+
+      setShowEditModal(false);
+      setEditingProject(null);
+    } catch (error) {
+      console.error('Error updating project:', error);
+      alert('Failed to update project. Please try again.');
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setIsDeleting(projectId);
+      await deleteDocument('projects', projectId);
+      
+      setProjects(prev => prev.filter(p => p.id !== projectId));
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      alert('Failed to delete project. Please try again.');
+    } finally {
+      setIsDeleting(null);
+    }
+  };
 
   const filteredProjects = projects
     .filter(project => {
@@ -216,9 +309,7 @@ export default function OrganizationProjects() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                        {project.status}
-                      </span>
+                      <Badge type="status" value={project.status} size="sm" />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
@@ -239,14 +330,18 @@ export default function OrganizationProjects() {
                       >
                         View
                       </Link>
-                      <Link 
-                        href={`/organizations/${organizationId}/projects/${project.id}/edit`}
+                      <button 
+                        onClick={() => handleEditProject(project)}
                         className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 mr-3"
                       >
                         Edit
-                      </Link>
-                      <button className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
-                        Delete
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteProject(project.id)}
+                        disabled={isDeleting === project.id}
+                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
+                      >
+                        {isDeleting === project.id ? 'Deleting...' : 'Delete'}
                       </button>
                     </td>
                   </tr>
@@ -284,6 +379,152 @@ export default function OrganizationProjects() {
             <p className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">
               {Math.round(projects.reduce((acc, p) => acc + p.progress, 0) / projects.length)}%
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Project Modal */}
+      {showEditModal && editingProject && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+              Edit Project
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Project Name
+                </label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="Enter project name"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={editForm.description}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="Enter project description"
+                  rows={3}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Status
+                </label>
+                <select
+                  value={editForm.status}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="planning">Planning</option>
+                  <option value="active">Active</option>
+                  <option value="on-hold">On Hold</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editForm.startDate}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, startDate: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editForm.dueDate}
+                    min={editForm.startDate || undefined}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, dueDate: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Client
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.client}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, client: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                    placeholder="Client name or organization"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Budget
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.budget}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, budget: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                    placeholder="Project budget"
+                  />
+                </div>
+              </div>
+               
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                   Progress ({editForm.progress}%)
+                 </label>
+                 <input
+                   type="range"
+                   min="0"
+                   max="100"
+                   value={editForm.progress}
+                   onChange={(e) => setEditForm(prev => ({ ...prev, progress: parseInt(e.target.value) }))}
+                   className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                 />
+                 <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                   <span>0%</span>
+                   <span>50%</span>
+                   <span>100%</span>
+                 </div>
+               </div>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingProject(null);
+                }}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveProject}
+                disabled={!editForm.name.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save Changes
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -19,7 +19,7 @@ export default function SignupPage() {
       setGoogleError('');
       clearError();
       await loginWithGoogle();
-      router.push('/organizations');
+      router.push(`${window.location.origin}/organizations`);
     } catch (error: any) {
       setGoogleError(error.message || 'Failed to sign up with Google');
     } finally {

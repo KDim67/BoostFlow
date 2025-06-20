@@ -62,7 +62,7 @@ export default function SignupForm() {
         createdAt: new Date()
       } as any);
       
-      router.push('/organizations');
+      router.push(`${window.location.origin}/organizations`);
     } catch (error: any) {
       setErrorMessage(error.message || 'Failed to create account');
     } finally {

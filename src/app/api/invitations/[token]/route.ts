@@ -3,6 +3,7 @@ import admin from 'firebase-admin';
 import { getDocument, updateDocument } from '@/lib/firebase/firestoreService';
 import { OrganizationMembership } from '@/lib/types/organization';
 import { NotificationService } from '@/lib/firebase/notificationService';
+import { getOrganizationMembers } from '@/lib/firebase/organizationService';
 import { serverTimestamp } from 'firebase/firestore';
 
 const initializeFirebaseAdmin = () => {
@@ -40,33 +41,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
-    if (!action || !['accept', 'decline'].includes(action)) {
-      return NextResponse.json(
-        { success: false, message: 'Invalid action. Must be "accept" or "decline"' },
-        { status: 400 }
-      );
-    }
-
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, message: 'User ID is required' },
-        { status: 400 }
-      );
-    }
-
     const membership = await getDocument('organizationMemberships', token) as OrganizationMembership;
     
     if (!membership) {
       return NextResponse.json(
         { success: false, message: 'Invitation not found or expired' },
         { status: 404 }
-      );
-    }
-
-    if (membership.userId !== userId) {
-      return NextResponse.json(
-        { success: false, message: 'This invitation is not for you' },
-        { status: 403 }
       );
     }
 
@@ -85,6 +65,39 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       );
     }
 
+    const inviterUser = membership.invitedBy ? await getDocument('users', membership.invitedBy) : null;
+
+    if (!action) {
+      return NextResponse.json({
+        success: true,
+        organizationName: organization.name,
+        organizationId: membership.organizationId,
+        role: membership.role,
+        inviterName: inviterUser?.displayName || inviterUser?.email || 'Unknown'
+      });
+    }
+
+    if (!['accept', 'decline'].includes(action)) {
+      return NextResponse.json(
+        { success: false, message: 'Invalid action. Must be "accept" or "decline"' },
+        { status: 400 }
+      );
+    }
+
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, message: 'User ID is required' },
+        { status: 400 }
+      );
+    }
+
+    if (membership.userId !== userId) {
+      return NextResponse.json(
+        { success: false, message: 'This invitation is not for you' },
+        { status: 403 }
+      );
+    }
+
     let response: InvitationResponse;
 
     if (action === 'accept') {
@@ -100,7 +113,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           membership.invitedBy,
           'Invitation Accepted',
           `Your invitation to join ${organization.name} has been accepted.`,
-          'team_invite_accepted',
+          'organization_invite_accepted',
           membership.organizationId,
           `/organizations/${membership.organizationId}`,
           {
@@ -109,6 +122,31 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
             acceptedBy: membership.userId
           }
         );
+      }
+
+      try {
+        const allMembers = await getOrganizationMembers(membership.organizationId);
+        const existingMembers = allMembers.filter(member => member.userId !== membership.userId);
+        
+        const memberJoinedPromises = existingMembers.map(member => 
+          NotificationService.createNotification(
+            member.userId,
+            'New Member Joined',
+            `${membership.userProfile?.displayName || membership.userProfile?.email || 'A new member'} has joined ${organization.name}.`,
+            'member_joined',
+            membership.organizationId,
+            `/organizations/${membership.organizationId}/members`,
+            {
+              joinedMemberId: membership.userId,
+              joinedMemberName: membership.userProfile?.displayName || membership.userProfile?.email,
+              organizationId: membership.organizationId
+            }
+          )
+        );
+        
+        await Promise.all(memberJoinedPromises);
+      } catch (notificationError) {
+        console.warn('Failed to send member_joined notifications:', notificationError);
       }
 
       response = {
@@ -126,7 +164,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           membership.invitedBy,
           'Invitation Declined',
           `Your invitation to join ${organization.name} has been declined.`,
-          'team_invite_declined',
+          'organization_invite_declined',
           membership.organizationId,
           `/organizations/${membership.organizationId}`,
           {
@@ -231,7 +269,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           membership.invitedBy,
           'Invitation Accepted',
           `Your invitation to join ${organization.name} has been accepted.`,
-          'team_invite_accepted',
+          'organization_invite_accepted',
           membership.organizationId,
           `/organizations/${membership.organizationId}`,
           {
@@ -257,7 +295,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           membership.invitedBy,
           'Invitation Declined',
           `Your invitation to join ${organization.name} has been declined.`,
-          'team_invite_declined',
+          'organization_invite_declined',
           membership.organizationId,
           `/organizations/${membership.organizationId}`,
           {

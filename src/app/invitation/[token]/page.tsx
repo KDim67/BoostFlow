@@ -33,9 +33,19 @@ export default function InvitationPage() {
       }
 
       try {
+        const response = await fetch(`/api/invitations/${invitationToken}`);
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.message || 'Invalid invitation');
+        }
+        
         setValidInvitation(true);
         setInvitationData({
-          organizationName: 'Loading...',
+          organizationName: result.organizationName,
+          organizationId: result.organizationId,
+          role: result.role,
+          inviterName: result.inviterName
         });
       } catch (error) {
         console.error('Error validating invitation:', error);
@@ -138,10 +148,10 @@ export default function InvitationPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">
-            Team Invitation
+            Organization Invitation
           </h1>
           <p className="text-gray-600 dark:text-gray-300">
-            You've been invited to join a team
+            You've been invited to join an organization
           </p>
         </div>
 
@@ -156,6 +166,18 @@ export default function InvitationPage() {
                 {invitationData?.organizationName || 'Loading...'}
               </p>
             </div>
+            {invitationData?.role && (
+              <div>
+                <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Role:</span>
+                <p className="text-gray-700 dark:text-gray-300 capitalize">{invitationData.role}</p>
+              </div>
+            )}
+            {invitationData?.inviterName && (
+              <div>
+                <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Invited by:</span>
+                <p className="text-gray-700 dark:text-gray-300">{invitationData.inviterName}</p>
+              </div>
+            )}
             <div>
               <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Invited User:</span>
               <p className="text-gray-700 dark:text-gray-300">{user.email}</p>

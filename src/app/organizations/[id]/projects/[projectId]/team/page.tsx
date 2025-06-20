@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/firebase/useAuth';
-import { getOrganization, hasOrganizationPermission } from '@/lib/firebase/organizationService';
+import { getOrganization, hasOrganizationPermission, getOrganizationMembers } from '@/lib/firebase/organizationService';
 import { queryDocuments, createDocument, deleteDocument } from '@/lib/firebase/firestoreService';
 import { where, serverTimestamp } from 'firebase/firestore';
-import { Organization } from '@/lib/types/organization';
+import { Organization, OrganizationMembership } from '@/lib/types/organization';
 
 interface TeamMember {
   id: string;
@@ -16,19 +16,23 @@ interface TeamMember {
   email: string;
   photoURL?: string;
   organizationId: string;
+  projectId: string;
+  userId: string;
   createdBy: string;
   createdAt: any;
 }
 
 export default function OrganizationProjectsTeam() {
-  const { id } = useParams();
+  const { id, projectId } = useParams();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [organizationMembers, setOrganizationMembers] = useState<OrganizationMembership[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { user } = useAuth();
   const organizationId = Array.isArray(id) ? id[0] : id;
+  const currentProjectId = Array.isArray(projectId) ? projectId[0] : projectId;
 
   useEffect(() => {
     const fetchTeamData = async () => {
@@ -50,9 +54,13 @@ export default function OrganizationProjectsTeam() {
         setOrganization(orgData);
         
         const teamData = await queryDocuments('team', [
-          where('organizationId', '==', organizationId)
+          where('organizationId', '==', organizationId),
+          where('projectId', '==', currentProjectId)
         ]);
         setTeamMembers(teamData as TeamMember[]);
+        
+        const orgMembers = await getOrganizationMembers(organizationId);
+        setOrganizationMembers(orgMembers);
       } catch (error) {
         console.error('Error fetching team data:', error);
         setError('Failed to load team data. Please try again.');
@@ -186,6 +194,9 @@ export default function OrganizationProjectsTeam() {
           isOpen={isModalOpen} 
           onClose={() => setIsModalOpen(false)} 
           organizationId={organizationId}
+          projectId={currentProjectId}
+          organizationMembers={organizationMembers}
+          existingTeamMembers={teamMembers}
           onMemberInvited={(newMember) => {
             setTeamMembers([...teamMembers, newMember]);
           }} 
@@ -199,36 +210,52 @@ interface InviteTeamMemberModalProps {
   isOpen: boolean;
   onClose: () => void;
   organizationId: string | undefined;
+  projectId: string | undefined;
+  organizationMembers: OrganizationMembership[];
+  existingTeamMembers: TeamMember[];
   onMemberInvited: (member: TeamMember) => void;
 }
 
-function InviteTeamMemberModal({ isOpen, onClose, organizationId, onMemberInvited }: InviteTeamMemberModalProps) {
-  if (!organizationId) return null;
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState('');
+function InviteTeamMemberModal({ isOpen, onClose, organizationId, projectId, organizationMembers, existingTeamMembers, onMemberInvited }: InviteTeamMemberModalProps) {
+  if (!organizationId || !projectId) return null;
+  const [selectedMemberId, setSelectedMemberId] = useState('');
+  const [role, setRole] = useState('Developer');
+  const [customRole, setCustomRole] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user } = useAuth();
+  
+  const availableMembers = organizationMembers.filter(orgMember => 
+    !existingTeamMembers.some(teamMember => teamMember.userId === orgMember.userId)
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!user) return;
+    if (!user || !selectedMemberId) return;
     
     try {
       setIsSubmitting(true);
       
+      const selectedMember = organizationMembers.find(m => m.userId === selectedMemberId);
+      if (!selectedMember) return;
+      
       const memberData = {
-        name,
-        email,
-        role,
+        name: selectedMember.userProfile?.displayName || selectedMember.userProfile?.email || 'Unknown',
+        email: selectedMember.userProfile?.email || '',
+        photoURL: selectedMember.userProfile?.photoURL,
+        role: role === 'Custom' ? customRole : role,
         organizationId,
+        projectId,
+        userId: selectedMember.userId,
         createdBy: user.uid,
         createdAt: serverTimestamp(),
       };
       
       await createDocument('team', memberData);
       
+      setSelectedMemberId('');
+      setRole('Developer');
+      setCustomRole('');
       onClose();
       
       onMemberInvited({
@@ -237,7 +264,7 @@ function InviteTeamMemberModal({ isOpen, onClose, organizationId, onMemberInvite
         createdAt: new Date(),
       });
     } catch (error) {
-      console.error('Error inviting team member:', error);
+      console.error('Error adding team member:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -249,46 +276,69 @@ function InviteTeamMemberModal({ isOpen, onClose, organizationId, onMemberInvite
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white">Invite Team Member</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white">Add Team Member</h3>
         </div>
         
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-            <input
-              type="text"
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+            <label htmlFor="member" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Organization Member</label>
+            <select
+              id="member"
+              value={selectedMemberId}
+              onChange={(e) => setSelectedMemberId(e.target.value)}
               required
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-            />
+            >
+              <option value="">Choose a member...</option>
+              {availableMembers.map((member) => (
+                <option key={member.userId} value={member.userId}>
+                  {member.userProfile?.displayName || member.userProfile?.email || 'Unknown'} 
+                  ({member.userProfile?.email}) - {member.role}
+                </option>
+              ))}
+            </select>
+            {availableMembers.length === 0 && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                All organization members are already part of this project team.
+              </p>
+            )}
           </div>
           
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
-            <input
-              type="text"
-              id="role"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-              placeholder="e.g. Developer, Designer, Project Manager"
-            />
-          </div>
+             <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Project Role</label>
+             <select
+               id="role"
+               value={role}
+               onChange={(e) => setRole(e.target.value)}
+               required
+               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+             >
+               <option value="Developer">Developer</option>
+               <option value="Designer">Designer</option>
+               <option value="Project Manager">Project Manager</option>
+               <option value="QA Engineer">QA Engineer</option>
+               <option value="DevOps Engineer">DevOps Engineer</option>
+               <option value="Business Analyst">Business Analyst</option>
+               <option value="Scrum Master">Scrum Master</option>
+               <option value="Product Owner">Product Owner</option>
+               <option value="Custom">Custom Role</option>
+             </select>
+           </div>
+           
+           {role === 'Custom' && (
+             <div>
+               <label htmlFor="customRole" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Custom Role Name</label>
+               <input
+                 type="text"
+                 id="customRole"
+                 value={customRole}
+                 onChange={(e) => setCustomRole(e.target.value)}
+                 required
+                 placeholder="Enter custom role name"
+                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+               />
+             </div>
+           )}
           
           <div className="flex justify-end space-x-3 mt-6">
             <button
@@ -299,12 +349,12 @@ function InviteTeamMemberModal({ isOpen, onClose, organizationId, onMemberInvite
               Cancel
             </button>
             <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? 'Sending Invite...' : 'Send Invite'}
-            </button>
+               type="submit"
+               disabled={isSubmitting || !selectedMemberId || availableMembers.length === 0 || (role === 'Custom' && !customRole.trim())}
+               className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+             >
+               {isSubmitting ? 'Adding Member...' : 'Add to Team'}
+             </button>
           </div>
         </form>
       </div>

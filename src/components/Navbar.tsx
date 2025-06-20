@@ -23,6 +23,25 @@ const Navbar = () => {
   const { isSuperAdmin } = usePlatformAuth();
 
   useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (user?.uid) {
+        try {
+          const profile = await getUserProfile(user.uid);
+          setUserProfile(profile);
+        } catch (error) {
+          console.error('Error fetching user profile:', error);
+        }
+      } else {
+        setUserProfile(null);
+      }
+    };
+
+    fetchUserProfile();
+  }, [user]);
+
+  const showNotifications = userProfile?.settings?.notifications?.website ?? true;
+
+  useEffect(() => {
     setShowOrgSelector(pathname.includes('/dashboard') || pathname.includes('/organizations'));
   }, [pathname]);
 
@@ -116,7 +135,7 @@ const Navbar = () => {
             {user ? (
               <>
                 {/* Notifications */}
-                <NotificationDropdown />
+                {showNotifications && <NotificationDropdown />}
 
                 <div className="relative profile-dropdown">
                 <button
@@ -167,7 +186,7 @@ const Navbar = () => {
                       onClick={async () => {
                         await logout();
                         setIsProfileOpen(false);
-                        router.push('/login');
+                        router.push(`${window.location.origin}/login`);
                       }}
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
@@ -254,7 +273,16 @@ const Navbar = () => {
             <div className="pt-4 pb-3 border-t border-gray-200 dark:border-gray-700">
               {user ? (
                 <>
-                  <Link 
+                  {showNotifications && (
+                    <Link
+                      href="/notifications"
+                      className="block px-3 py-2 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Notifications
+                    </Link>
+                  )}
+                  <Link
                     href="/settings" 
                     className="block px-3 py-2 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
                     onClick={() => setIsMobileMenuOpen(false)}
@@ -281,7 +309,7 @@ const Navbar = () => {
                     onClick={async () => {
                       await logout();
                       setIsMobileMenuOpen(false);
-                      router.push('/login');
+                      router.push(`${window.location.origin}/login`);
                     }}
                     className="block w-full text-left px-3 py-2 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
                   >

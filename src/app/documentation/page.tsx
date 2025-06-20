@@ -17,7 +17,7 @@ const DocumentationPage = () => {
               <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">BoostFlow</span> Documentation
             </h1>
             <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 mb-8">
-              Welcome to the BoostFlow documentation. Here you'll find comprehensive guides and documentation to help you start working with BoostFlow as quickly as possible.
+              BoostFlow is a modern project management and productivity platform built around organizations. Create your organization, invite team members, manage projects, and automate workflows all in one place.
             </p>
           </div>
         </div>
@@ -68,14 +68,15 @@ const DocumentationPage = () => {
                 <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center mb-4">
                   <span className="text-xl font-bold text-purple-600 dark:text-purple-400">2</span>
                 </div>
-                <h3 className="text-xl font-semibold mb-3">Set Up Your Workspace</h3>
+                <h3 className="text-xl font-semibold mb-3">Create Your Organization</h3>
                 <p className="text-gray-600 dark:text-gray-300 mb-4">
-                  After creating your account, you'll be prompted to set up your workspace. This is where you'll manage your projects, tasks, and team members.
+                  After creating your account, you'll need to create or join an organization. Organizations are the main workspace where you'll manage your projects, tasks, and team members.
                 </p>
                 <ul className="list-disc pl-6 space-y-2 text-gray-600 dark:text-gray-300">
-                  <li>Give your workspace a name that represents your team or organization</li>
-                  <li>Customize your workspace with your company logo</li>
-                  <li>Invite team members to join your workspace</li>
+                  <li>Choose a subscription plan (Free, Starter, Professional, or Enterprise)</li>
+                  <li>Give your organization a name and description</li>
+                  <li>Upload your company logo and set up branding</li>
+                  <li>Configure organization settings</li>
                 </ul>
               </div>
               
@@ -84,16 +85,16 @@ const DocumentationPage = () => {
                 <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center mb-4">
                   <span className="text-xl font-bold text-green-600 dark:text-green-400">3</span>
                 </div>
-                <h3 className="text-xl font-semibold mb-3">Create Your First Project</h3>
+                <h3 className="text-xl font-semibold mb-3">Invite Team Members</h3>
                 <p className="text-gray-600 dark:text-gray-300 mb-4">
-                  Projects are the main organizational unit in BoostFlow. To create your first project:
+                  Build your team by inviting members to your organization with different roles and permissions:
                 </p>
                 <ol className="list-decimal pl-6 space-y-2 text-gray-600 dark:text-gray-300">
-                  <li>Navigate to the Projects tab in your dashboard</li>
-                  <li>Click the "New Project" button</li>
-                  <li>Enter a name and description for your project</li>
-                  <li>Set a due date and assign team members</li>
-                  <li>Click "Create Project" to finish</li>
+                  <li>Navigate to the Team section in your organization</li>
+                  <li>Click "Invite Members" and enter email addresses</li>
+                  <li>Assign roles: Owner, Admin, Member, or Viewer</li>
+                  <li>Set permissions and access levels</li>
+                  <li>Send invitations to your team members</li>
                 </ol>
               </div>
               
@@ -102,17 +103,17 @@ const DocumentationPage = () => {
                 <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900 rounded-lg flex items-center justify-center mb-4">
                   <span className="text-xl font-bold text-yellow-600 dark:text-yellow-400">4</span>
                 </div>
-                <h3 className="text-xl font-semibold mb-3">Add Tasks to Your Project</h3>
+                <h3 className="text-xl font-semibold mb-3">Create Your First Project</h3>
                 <p className="text-gray-600 dark:text-gray-300 mb-4">
-                  Tasks are the individual work items within your projects. To add tasks:
+                  Projects are where you organize work within your organization. To create your first project:
                 </p>
                 <ol className="list-decimal pl-6 space-y-2 text-gray-600 dark:text-gray-300">
-                  <li>Open your project from the Projects dashboard</li>
-                  <li>Click the "Add Task" button</li>
-                  <li>Enter a title and description for your task</li>
-                  <li>Set priority, status, and due date</li>
-                  <li>Assign the task to a team member</li>
-                  <li>Click "Create Task" to add it to your project</li>
+                  <li>Navigate to the Projects section in your organization</li>
+                  <li>Click "New Project" and enter project details</li>
+                  <li>Set project timeline, budget, and client information</li>
+                  <li>Assign team members and define their roles</li>
+                  <li>Start adding tasks and setting up workflows</li>
+                  <li>Configure automation and integrations as needed</li>
                 </ol>
               </div>
             </div>
@@ -132,78 +133,57 @@ const DocumentationPage = () => {
           
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {/* Feature 1 */}
-              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl shadow-md p-6 transition-all hover:shadow-lg">
+              <div id="task-automation" className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-8 transition-all hover:shadow-xl border border-gray-100 dark:border-gray-700">
                  <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center mb-4">
                    <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                    </svg>
                  </div>
-                 <h3 className="text-xl font-semibold mb-2">Project Management</h3>
+                 <h3 className="text-xl font-semibold mb-2">Task Automation</h3>
                  <p className="text-gray-600 dark:text-gray-300 mb-4">
-                   BoostFlow's project management features help you organize work, track progress, and meet deadlines.
+                   BoostFlow's AI-powered automation tools learn from your team's patterns to automate repetitive tasks, saving you time and reducing errors.
                  </p>
                  <ul className="list-disc pl-6 mb-6 space-y-2 text-gray-600 dark:text-gray-300">
-                   <li><strong>Project Dashboard:</strong> Get a visual overview of project progress, upcoming deadlines, and team workload</li>
-                   <li><strong>Task Management:</strong> Create, assign, and track tasks with customizable statuses and priorities</li>
-                   <li><strong>Timeline View:</strong> Visualize project schedules with an interactive Gantt chart</li>
-                   <li><strong>Kanban Boards:</strong> Manage workflow with customizable boards and columns</li>
+                   <li><strong>Workflow automation:</strong> Visual builder for creating automated workflows</li>
+                   <li><strong>Task prioritization:</strong> Intelligent task ordering and scheduling</li>
                  </ul>
-                 <Link href="/features" className="text-blue-600 dark:text-blue-400 font-medium hover:underline inline-flex items-center">
-                   Learn more
-                   <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                   </svg>
-                 </Link>
                </div>
                
                {/* Feature 2 */}
-               <div className="bg-gray-50 dark:bg-gray-800 rounded-xl shadow-md p-6 transition-all hover:shadow-lg">
+               <div id="ai-analytics" className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-8 transition-all hover:shadow-xl border border-gray-100 dark:border-gray-700">
                  <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center mb-4">
                    <svg className="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                   </svg>
-                 </div>
-                 <h3 className="text-xl font-semibold mb-2">Automation</h3>
-                 <p className="text-gray-600 dark:text-gray-300 mb-4">
-                   Save time and reduce manual work with BoostFlow's powerful automation features.
-                 </p>
-                 <ul className="list-disc pl-6 mb-6 space-y-2 text-gray-600 dark:text-gray-300">
-                   <li><strong>Workflow Automation:</strong> Create rules to automatically assign tasks, update statuses, and send notifications</li>
-                   <li><strong>Smart Scheduling:</strong> AI-powered scheduling suggestions based on team workload and priorities</li>
-                   <li><strong>Recurring Tasks:</strong> Set up tasks that repeat on a schedule</li>
-                   <li><strong>Templates:</strong> Create reusable project and task templates</li>
-                 </ul>
-                 <Link href="/features" className="text-purple-600 dark:text-purple-400 font-medium hover:underline inline-flex items-center">
-                   Learn more
-                   <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                   </svg>
-                 </Link>
-               </div>
-               
-               {/* Feature 3 */}
-               <div className="bg-gray-50 dark:bg-gray-800 rounded-xl shadow-md p-6 transition-all hover:shadow-lg">
-                 <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center mb-4">
-                   <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                    </svg>
                  </div>
-                 <h3 className="text-xl font-semibold mb-2">Analytics</h3>
+                 <h3 className="text-xl font-semibold mb-2">AI-Powered Analytics</h3>
                  <p className="text-gray-600 dark:text-gray-300 mb-4">
-                   Gain insights into your team's performance and project health with comprehensive analytics.
+                   Get intelligent insights about your project performance with AI that analyzes task patterns, team productivity, and identifies optimization opportunities.
                  </p>
                  <ul className="list-disc pl-6 mb-6 space-y-2 text-gray-600 dark:text-gray-300">
-                   <li><strong>Performance Dashboards:</strong> Track key metrics like task completion rate and team efficiency</li>
-                   <li><strong>Custom Reports:</strong> Create and export custom reports for stakeholders</li>
-                   <li><strong>Time Tracking:</strong> Monitor time spent on tasks and projects</li>
-                   <li><strong>Trend Analysis:</strong> Identify patterns and areas for improvement</li>
+                   <li><strong>Smart analysis:</strong> Task completion analysis and bottleneck detection</li>
+                   <li><strong>Optimization recommendations:</strong> AI-powered productivity suggestions</li>
+                   <li><strong>Risk identification:</strong> Workload distribution insights and risk assessment</li>
+                   <li><strong>Performance tracking:</strong> Team and individual productivity metrics</li>
                  </ul>
-                 <Link href="/features" className="text-green-600 dark:text-green-400 font-medium hover:underline inline-flex items-center">
-                   Learn more
-                   <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+               </div>
+               
+               {/* Feature 3 */}
+               <div id="team-collaboration" className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-8 transition-all hover:shadow-xl border border-gray-100 dark:border-gray-700">
+                 <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center mb-4">
+                   <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
                    </svg>
-                 </Link>
+                 </div>
+                 <h3 className="text-xl font-semibold mb-2">Team Collaboration</h3>
+                 <p className="text-gray-600 dark:text-gray-300 mb-4">
+                   Connect your team with powerful communication tools including organized channels, direct messaging, and real-time collaboration features.
+                 </p>
+                 <ul className="list-disc pl-6 mb-6 space-y-2 text-gray-600 dark:text-gray-300">
+                   <li><strong>Organized channels:</strong> Team discussions and project coordination</li>
+                   <li><strong>Direct messaging:</strong> Private conversations between team members</li>
+                   <li><strong>Real-time messaging:</strong> Typing indicators and message history</li>
+                 </ul>
                </div>
             </div>
           </div>
@@ -216,67 +196,52 @@ const DocumentationPage = () => {
           <div className="max-w-3xl mx-auto">
           
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">Advanced Topics</h2>
-              <p className="text-lg text-gray-600 dark:text-gray-300">Explore advanced features and integrations to get the most out of BoostFlow.</p>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">Organization Management</h2>
+              <p className="text-lg text-gray-600 dark:text-gray-300">Advanced organization features to scale your team and optimize workflows.</p>
             </div>
-          
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {/* Advanced Topic 1 */}
-              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl shadow-md p-6 transition-all hover:shadow-lg">
-                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center mb-4">
-                  <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-semibold mb-2">API Integration</h3>
+
+            {/* Organization Features */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16 mt-16">
+
+              {/* Organization Settings */}
+              <div id="organization-settings" className="bg-gray-50 dark:bg-gray-800 rounded-xl shadow-md p-6">
+                <h3 className="text-xl font-semibold mb-4">Organization Settings</h3>
                 <p className="text-gray-600 dark:text-gray-300 mb-4">
-                  BoostFlow offers a robust API for integrating with your existing tools and workflows. Visit our API documentation for detailed information.
+                  Configure your organization with advanced security and management features.
                 </p>
-                <Link href="#" className="text-blue-600 dark:text-blue-400 font-medium hover:underline inline-flex items-center">
-                  View API Documentation
-                  <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </Link>
+                <ul className="text-gray-600 dark:text-gray-300 space-y-2">
+                  <li>• Subscription plan management (Free, Starter, Professional, Enterprise)</li>
+                  <li>• Member role management (Owner, Admin, Member, Viewer)</li>
+                  <li>• Custom branding and logo upload</li>
+                </ul>
               </div>
-              
-              {/* Advanced Topic 2 */}
-              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl shadow-md p-6 transition-all hover:shadow-lg">
-                <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center mb-4">
-                  <svg className="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-semibold mb-2">Security & Compliance</h3>
+
+              {/* Workflow Automation */}
+              <div id="workflow-automation" className="bg-gray-50 dark:bg-gray-800 rounded-xl shadow-md p-6">
+                <h3 className="text-xl font-semibold mb-4">Workflow Automation</h3>
                 <p className="text-gray-600 dark:text-gray-300 mb-4">
-                  Learn about our security practices and compliance certifications in our Security Guide.
+                  Create powerful automated workflows to streamline your project management.
                 </p>
-                <Link href="#" className="text-purple-600 dark:text-purple-400 font-medium hover:underline inline-flex items-center">
-                  Read Security Guide
-                  <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </Link>
+                <ul className="text-gray-600 dark:text-gray-300 space-y-2">
+                  <li>• Visual workflow builder with triggers, conditions, and actions</li>
+                  <li>• Automated task creation and assignment</li>
+                  <li>• Project-based workflow management</li>
+                  <li>• Workflow execution tracking and history</li>
+                  <li>• Integration with third-party services</li>
+                </ul>
               </div>
-              
-              {/* Advanced Topic 3 */}
-              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl shadow-md p-6 transition-all hover:shadow-lg">
-                <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center mb-4">
-                  <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-semibold mb-2">Enterprise Features</h3>
-                <p className="text-gray-600 dark:text-gray-300 mb-4">
-                  Discover advanced features available on our Enterprise plan, including single sign-on, advanced permissions, and dedicated support.
-                </p>
-                <Link href="/pricing" className="text-green-600 dark:text-green-400 font-medium hover:underline inline-flex items-center">
-                  Explore Enterprise Plan
-                  <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </Link>
-              </div>
+
+            </div>
+
+            {/* CTA Section */}
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-center text-white">
+              <h2 className="text-3xl font-bold mb-4">Need More Help?</h2>
+              <p className="text-xl mb-6 opacity-90">
+                Can't find what you're looking for? Our support team is here to help.
+              </p>
+              <Link href="/contact" className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors inline-block">
+                Contact Support
+              </Link>
             </div>
           </div>
         </div>

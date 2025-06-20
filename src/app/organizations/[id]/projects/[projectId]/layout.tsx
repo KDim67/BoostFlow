@@ -86,37 +86,6 @@ export default function ProjectLayout({
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb Navigation */}
-      <nav className="text-sm">
-        <ol className="flex items-center space-x-2">
-          <li>
-            <Link href="/dashboard" className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
-              Dashboard
-            </Link>
-          </li>
-          <li className="text-gray-500 dark:text-gray-400">/</li>
-          <li>
-            <Link href="/organizations" className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
-              Organizations
-            </Link>
-          </li>
-          <li className="text-gray-500 dark:text-gray-400">/</li>
-          <li>
-            <Link href={`/organizations/${organizationId}`} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
-              {organization.name}
-            </Link>
-          </li>
-          <li className="text-gray-500 dark:text-gray-400">/</li>
-          <li>
-            <Link href={`/organizations/${organizationId}/projects`} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
-              Projects
-            </Link>
-          </li>
-          <li className="text-gray-500 dark:text-gray-400">/</li>
-          <li className="text-gray-900 dark:text-white font-medium">{projectName}</li>
-        </ol>
-      </nav>
-
       {/* Project Content */}
       {children}
     </div>

@@ -18,8 +18,7 @@ interface SettingsFormData {
   newPassword: string;
   confirmPassword: string;
   emailNotifications: boolean;
-  pushNotifications: boolean;
-  smsNotifications: boolean;
+  websiteNotifications: boolean;
   profilePicture: string;
 }
 
@@ -41,8 +40,7 @@ export default function SettingsPage() {
     newPassword: '',
     confirmPassword: '',
     emailNotifications: true,
-    pushNotifications: true,
-    smsNotifications: false,
+    websiteNotifications: true,
     profilePicture: ''
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -67,9 +65,8 @@ export default function SettingsPage() {
             firstName: profile.firstName || '',
             lastName: profile.lastName || '',
             emailNotifications: profile.settings?.notifications?.email ?? true,
-            pushNotifications: profile.settings?.notifications?.push ?? true,
-            smsNotifications: profile.settings?.notifications?.sms ?? false,
             profilePicture: profile.profilePicture || '',
+            websiteNotifications: profile.settings?.notifications?.website ?? true,
           }));
         }
       } catch (error) {
@@ -105,7 +102,7 @@ export default function SettingsPage() {
   const handleCropComplete = async (croppedAreaPixels: any) => {
     try {
       if (!selectedImage) return;
-      
+
       const croppedImageBlob = await getCroppedImg(selectedImage, croppedAreaPixels);
       const croppedFile = new File([croppedImageBlob], 'profile-picture.jpg', {
         type: 'image/jpeg',
@@ -226,8 +223,7 @@ export default function SettingsPage() {
         settings: {
           notifications: {
             email: formData.emailNotifications,
-            push: formData.pushNotifications,
-            sms: formData.smsNotifications
+            website: formData.websiteNotifications
           }
         }
       });
@@ -523,36 +519,17 @@ export default function SettingsPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <h4 className="text-sm font-medium text-gray-900 dark:text-white">
-                          Push Notifications
+                          Website Notifications
                         </h4>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Receive push notifications in your browser
+                          Show notification tab in the navigation bar
                         </p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={formData.pushNotifications}
-                          onChange={(e) => handleInputChange('pushNotifications', e.target.checked)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                      </label>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-900 dark:text-white">
-                          SMS Notifications
-                        </h4>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Receive SMS notifications for important updates
-                        </p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.smsNotifications}
-                          onChange={(e) => handleInputChange('smsNotifications', e.target.checked)}
+                          checked={formData.websiteNotifications}
+                          onChange={(e) => handleInputChange('websiteNotifications', e.target.checked)}
                           className="sr-only peer"
                         />
                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
@@ -582,7 +559,7 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
-      
+
       {/* Image Cropper Modal */}
       {showImageCropper && selectedImage && (
         <ImageCropper

@@ -3,7 +3,7 @@ import { User, multiFactor, PhoneAuthProvider, PhoneMultiFactorGenerator, MultiF
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db as firestore } from './config';
 
-export type PlatformRole = 'super_admin' | 'platform_moderator' | 'organization_admin' | 'user';
+export type PlatformRole = 'super_admin' | 'platform_moderator' | 'user';
 
 interface PlatformAuthUser extends User {
   platformRole?: PlatformRole;

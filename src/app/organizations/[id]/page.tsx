@@ -12,6 +12,7 @@ import OrganizationIntegrations from '@/components/dashboard/OrganizationIntegra
 import OrganizationMembers from './members/page';
 import OrganizationSettings from './settings/page';
 import OrganizationBilling from './billing/page';
+import OrganizationCommunication from './communication/page';
 
 function MembersRedirect({ organizationId }: { organizationId: string }) {
   const router = useRouter();
@@ -38,6 +39,8 @@ export default function OrganizationPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasPermission, setHasPermission] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { user } = useAuth();
   const router = useRouter();
   const organizationId = Array.isArray(id) ? id[0] : id;
@@ -52,6 +55,12 @@ export default function OrganizationPage() {
         
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'viewer');
         setHasPermission(permission);
+        
+        const ownerPermission = await hasOrganizationPermission(user.uid, organizationId, 'owner');
+        setIsOwner(ownerPermission);
+        
+        const adminPermission = await hasOrganizationPermission(user.uid, organizationId, 'admin');
+        setIsAdmin(adminPermission);
         
         if (!permission) {
           setError('You do not have permission to view this organization.');
@@ -86,15 +95,7 @@ export default function OrganizationPage() {
     fetchOrganizationData();
   }, [user, organizationId]);
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'owner': return 'bg-amber-100 text-amber-800';
-      case 'admin': return 'bg-green-100 text-green-800';
-      case 'member': return 'bg-blue-100 text-blue-800';
-      case 'viewer': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+
 
   if (isLoading) {
     return (
@@ -129,38 +130,52 @@ export default function OrganizationPage() {
     <div>
         {/* Organization Tabs */}
         <div className="mb-8 border-b border-gray-200 dark:border-gray-700">
-          <nav className="-mb-px flex space-x-8">
-            <button
-              onClick={() => setActiveTab('projects')}
-              className={`pb-4 px-1 ${activeTab === 'projects' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'} font-medium`}
-            >
-              Projects
-            </button>
-            <button
-              onClick={() => setActiveTab('members')}
-              className={`pb-4 px-1 ${activeTab === 'members' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'} font-medium`}
-            >
-              Members
-            </button>
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`pb-4 px-1 ${activeTab === 'settings' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'} font-medium`}
-            >
-              Settings
-            </button>
-            <button
-              onClick={() => setActiveTab('integrations')}
-              className={`pb-4 px-1 ${activeTab === 'integrations' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'} font-medium`}
-            >
-              Integrations
-            </button>
-            <button
-              onClick={() => setActiveTab('billing')}
-              className={`pb-4 px-1 ${activeTab === 'billing' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'} font-medium`}
-            >
-              Billing
-            </button>
-          </nav>
+          <div className="flex justify-between items-center">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('projects')}
+                className={`pb-4 px-1 ${activeTab === 'projects' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'} font-medium`}
+              >
+                Projects
+              </button>
+              <button
+                onClick={() => setActiveTab('members')}
+                className={`pb-4 px-1 ${activeTab === 'members' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'} font-medium`}
+              >
+                Members
+              </button>
+              {isOwner && (
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className={`pb-4 px-1 ${activeTab === 'settings' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'} font-medium`}
+                >
+                  Settings
+                </button>
+              )}
+              {(isOwner || isAdmin) && (
+                <button
+                  onClick={() => setActiveTab('integrations')}
+                  className={`pb-4 px-1 ${activeTab === 'integrations' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'} font-medium`}
+                >
+                  Integrations
+                </button>
+              )}
+              {(isOwner || isAdmin) && (
+                <button
+                  onClick={() => setActiveTab('billing')}
+                  className={`pb-4 px-1 ${activeTab === 'billing' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'} font-medium`}
+                >
+                  Billing
+                </button>
+              )}
+              <button
+                onClick={() => setActiveTab('communication')}
+                className={`pb-4 px-1 ${activeTab === 'communication' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'} font-medium`}
+              >
+                Chat
+              </button>
+            </nav>
+          </div>
         </div>
 
         {/* Tab Content */}
@@ -187,6 +202,10 @@ export default function OrganizationPage() {
 
         {activeTab === 'billing' && (
           <OrganizationBilling/>
+        )}
+
+        {activeTab === 'communication' && (
+          <OrganizationCommunication/>
         )}
     </div>
   );

@@ -18,9 +18,9 @@ interface TaskAnalytics {
   status: string;
   priority: string;
   assignee: string;
-  createdAt: Date;
-  completedAt?: Date;
-  dueDate?: Date;
+  createdAt: string;
+  completedAt?: string;
+  dueDate?: string;
   timeSpent?: number;
 }
 

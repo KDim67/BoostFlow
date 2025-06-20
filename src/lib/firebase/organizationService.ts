@@ -59,17 +59,21 @@ export const createOrganization = async (
   organizationData: Partial<Organization>
 ): Promise<string> => {
   try {
+    const plan = organizationData.plan || 'free';
+    const defaultPlanFeatures = getSubscriptionPlanFeatures(plan);
+    
+    const maxMembers = organizationData.subscriptionDetails?.teamSize || defaultPlanFeatures.maxMembers;
+    
     const orgData: Partial<Organization> = {
       name: organizationData.name || 'My Organization',
       description: organizationData.description || '',
       logoUrl: organizationData.logoUrl,
-      plan: organizationData.plan || 'free',
+      plan: plan,
       planFeatures: organizationData.planFeatures || {
-        maxProjects: 3,
-        maxMembers: 5,
-        maxStorage: 5,
-        advancedFeatures: false
+        ...defaultPlanFeatures,
+        maxMembers: maxMembers
       },
+      subscriptionDetails: organizationData.subscriptionDetails,
       createdBy: user.uid
     };
 
@@ -85,7 +89,8 @@ export const createOrganization = async (
       userId: user.uid,
       role: 'owner',
       status: 'active',
-      invitedBy: user.uid
+      invitedBy: user.uid,
+      joinedAt: serverTimestamp()
     });
     
     return orgId;
@@ -291,14 +296,14 @@ export const inviteTeamMember = async (
   inviterUserId: string,
   inviteeEmail: string,
   role: OrganizationRole = 'member'
-): Promise<string> => {
+): Promise<{ success: boolean; membershipId?: string; error?: string }> => {
   try {
     const { getUserByEmail } = await import('./userProfileService');
     const { NotificationService } = await import('./notificationService');
     
     const inviteeUser = await getUserByEmail(inviteeEmail);
     if (!inviteeUser) {
-      throw new Error('User with this email does not exist');
+      return { success: false, error: 'User with this email does not exist' };
     }
     
     const existingMembership = await queryDocuments(MEMBERSHIPS_COLLECTION, [
@@ -307,12 +312,24 @@ export const inviteTeamMember = async (
     ]) as OrganizationMembership[];
     
     if (existingMembership.length > 0) {
-      throw new Error('User is already a member or has a pending invitation');
+      return { success: false, error: 'User is already a member or has a pending invitation' };
     }
     
     const organization = await getOrganization(organizationId);
     if (!organization) {
-      throw new Error('Organization not found');
+      return { success: false, error: 'Organization not found' };
+    }
+    
+    const currentMembers = await queryDocuments(MEMBERSHIPS_COLLECTION, [
+      where('organizationId', '==', organizationId),
+      where('status', 'in', ['active', 'invited'])
+    ]);
+    
+    const planFeatures = organization.planFeatures || getSubscriptionPlanFeatures(organization.plan);
+    const maxMembers = organization.subscriptionDetails?.teamSize || planFeatures.maxMembers;
+    
+    if (currentMembers.length >= maxMembers) {
+      return { success: false, error: `Cannot invite more members. Your ${organization.plan} plan allows up to ${maxMembers} members.` };
     }
     
     const membershipData: Partial<OrganizationMembership> = {
@@ -330,7 +347,7 @@ export const inviteTeamMember = async (
       inviteeUser.uid,
       'Team Invitation',
       `You've been invited to join ${organization.name} as a ${role}`,
-      'team_invite',
+      'organization_invite',
       organizationId,
       `/invitation/${membershipId}`,
       {
@@ -380,23 +397,35 @@ export const inviteTeamMember = async (
     }
     
     logger.info(`Team invitation sent to ${inviteeEmail} for organization ${organizationId}`);
-    return membershipId;
+    return { success: true, membershipId };
   } catch (error) {
     logger.error('Error inviting team member', error as Error, { organizationId, inviteeEmail });
-    throw error;
+    return { success: false, error: (error as Error).message || 'Failed to send invitation' };
   }
 };
 
-export const acceptTeamInvitation = async (membershipId: string): Promise<void> => {
+export const acceptTeamInvitation = async (membershipId: string): Promise<{ success: boolean; error?: string }> => {
   try {
     const membership = await getDocument(MEMBERSHIPS_COLLECTION, membershipId) as OrganizationMembership;
     if (!membership) {
-      throw new Error('Membership not found');
+      return { success: false, error: 'Membership not found' };
     }
 
     const organization = await getOrganization(membership.organizationId);
     if (!organization) {
-      throw new Error('Organization not found');
+      return { success: false, error: 'Organization not found' };
+    }
+    
+    const currentActiveMembers = await queryDocuments(MEMBERSHIPS_COLLECTION, [
+      where('organizationId', '==', membership.organizationId),
+      where('status', '==', 'active')
+    ]);
+    
+    const planFeatures = organization.planFeatures || getSubscriptionPlanFeatures(organization.plan);
+    const maxMembers = organization.subscriptionDetails?.teamSize || planFeatures.maxMembers;
+    
+    if (currentActiveMembers.length >= maxMembers) {
+      return { success: false, error: `Cannot accept invitation. The organization has reached its member limit of ${maxMembers} for the ${organization.plan} plan.` };
     }
 
     await updateOrganizationMembership(membershipId, {
@@ -410,7 +439,7 @@ export const acceptTeamInvitation = async (membershipId: string): Promise<void> 
         membership.invitedBy,
         'Invitation Accepted',
         `Your invitation to join ${organization.name} has been accepted.`,
-        'team_invite_accepted',
+        'organization_invite_accepted',
         membership.organizationId,
         `/organizations/${membership.organizationId}`,
         {
@@ -422,9 +451,10 @@ export const acceptTeamInvitation = async (membershipId: string): Promise<void> 
     }
     
     logger.info(`Team invitation accepted: ${membershipId}`);
+    return { success: true };
   } catch (error) {
     logger.error('Error accepting team invitation', error as Error, { membershipId });
-    throw error;
+    return { success: false, error: (error as Error).message || 'Failed to accept invitation' };
   }
 };
 
@@ -446,7 +476,7 @@ export const declineTeamInvitation = async (membershipId: string): Promise<void>
         membership.invitedBy,
         'Invitation Declined',
         `Your invitation to join ${organization.name} has been declined.`,
-        'team_invite_declined',
+        'organization_invite_declined',
         membership.organizationId,
         `/organizations/${membership.organizationId}`,
         {
@@ -468,28 +498,20 @@ export const declineTeamInvitation = async (membershipId: string): Promise<void>
 export const getSubscriptionPlanFeatures = (plan: SubscriptionPlan) => {
   const planFeatures = {
     free: {
-      maxProjects: 3,
-      maxMembers: 5,
-      maxStorage: 5, // GB
-      advancedFeatures: false
+      maxMembers: 15,
+      maxStorage: 5 // GB
     },
     starter: {
-      maxProjects: 10,
-      maxMembers: 15,
-      maxStorage: 20, // GB
-      advancedFeatures: false
+      maxMembers: Infinity,
+      maxStorage: 250 // GB
     },
     professional: {
-      maxProjects: 50,
-      maxMembers: 50,
-      maxStorage: 100, // GB
-      advancedFeatures: true
+      maxMembers: Infinity,
+      maxStorage: Infinity
     },
     enterprise: {
-      maxProjects: Infinity,
       maxMembers: Infinity,
-      maxStorage: 1000, // GB
-      advancedFeatures: true
+      maxStorage: Infinity
     }
   };
   

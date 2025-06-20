@@ -21,20 +21,15 @@ export interface Notification {
 
 export type NotificationType = 
   | 'organization_invite'
-  | 'team_invite'
-  | 'team_invite_accepted'
-  | 'team_invite_declined'
+  | 'organization_invite_accepted'
+  | 'organization_invite_declined'
   | 'plan_upgrade'
   | 'plan_downgrade'
-  | 'payment_success'
-  | 'payment_failed'
   | 'member_joined'
   | 'member_left'
-  | 'project_created'
-  | 'project_updated'
-  | 'task_created'
-  | 'task_assigned'
   | 'system_announcement'
+  | 'direct_message'
+  | 'channel_added'
   | 'general';
 
 export interface NotificationPreferences {

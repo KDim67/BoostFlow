@@ -5,9 +5,11 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/firebase/useAuth';
 import { getOrganization, hasOrganizationPermission } from '@/lib/firebase/organizationService';
-import { queryDocuments, createDocument, updateDocument } from '@/lib/firebase/firestoreService';
+import { queryDocuments, createDocument, updateDocument, deleteDocument } from '@/lib/firebase/firestoreService';
 import { where, serverTimestamp } from 'firebase/firestore';
 import { Organization } from '@/lib/types/organization';
+
+import Badge from '@/components/Badge';
 
 interface Task {
   id: string;
@@ -42,6 +44,8 @@ export default function OrganizationProjectsTasks() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const { user } = useAuth();
   const organizationId = Array.isArray(id) ? id[0] : id;
   const projectIdString = Array.isArray(projectId) ? projectId[0] : projectId;
@@ -180,7 +184,6 @@ export default function OrganizationProjectsTasks() {
                           const newStatus = task.status === 'completed' ? 'pending' : 'completed';
                           const updateData: any = { status: newStatus };
                           
-                          // Add completedAt timestamp when marking as completed
                           if (newStatus === 'completed') {
                             updateData.completedAt = serverTimestamp();
                           } else {
@@ -189,7 +192,6 @@ export default function OrganizationProjectsTasks() {
                           
                           await updateDocument('tasks', task.id, updateData);
                           
-                          // Update local state
                           setTasks(tasks.map(t => 
                             t.id === task.id ? { 
                               ...t, 
@@ -205,18 +207,67 @@ export default function OrganizationProjectsTasks() {
                     />
                   </div>
                   <div className="ml-3 flex-1">
-                    <div className="flex justify-between">
-                      <h4 className="text-sm font-medium text-gray-900 dark:text-white">{task.title}</h4>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${task.priority === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : task.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'}`}>
-                        {task.priority === 'high' ? 'High' : task.priority === 'medium' ? 'Medium' : 'Low'}
-                      </span>
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h4 className="text-sm font-medium text-gray-900 dark:text-white">{task.title}</h4>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Badge type="priority" value={task.priority} variant="with-icon" size="md" />
+                        <div className="relative">
+                          <button
+                            onClick={() => setOpenDropdownId(openDropdownId === task.id ? null : task.id)}
+                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          >
+                            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                            </svg>
+                          </button>
+                          {openDropdownId === task.id && (
+                            <div className="absolute right-0 mt-1 w-32 bg-white dark:bg-gray-700 rounded-md shadow-lg z-10 border border-gray-200 dark:border-gray-600">
+                              <button
+                                onClick={() => {
+                                  setEditingTask(task);
+                                  setIsModalOpen(true);
+                                  setOpenDropdownId(null);
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center"
+                              >
+                                <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                Edit
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await deleteDocument('tasks', task.id);
+                                    setTasks(tasks.filter(t => t.id !== task.id));
+                                    setOpenDropdownId(null);
+                                  } catch (error) {
+                                    console.error('Error deleting task:', error);
+                                  }
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center"
+                              >
+                                <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{task.description}</p>
                     <div className="mt-2 flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
                       <div className="flex items-center space-x-2">
-                        <span className={`px-2 py-1 rounded-full ${task.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : task.status === 'in-progress' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'}`}>
-                          {task.status === 'completed' ? 'Completed' : task.status === 'in-progress' ? 'In Progress' : 'To Do'}
-                        </span>
+                        <Badge 
+                          type="status" 
+                          value={task.status} 
+                          variant="with-icon" 
+                          size="sm" 
+                        />
                         {task.assignee && (
                           <span className="px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400 rounded-full">
                             {task.assignee}
@@ -233,15 +284,22 @@ export default function OrganizationProjectsTasks() {
         )}
       </div>
 
-      {/* New Task Modal */}
+      {/* Task Modal */}
       {isModalOpen && (
-        <NewTaskModal 
+        <TaskModal 
           isOpen={isModalOpen} 
-          onClose={() => setIsModalOpen(false)} 
+          onClose={() => {
+            setIsModalOpen(false);
+            setEditingTask(null);
+          }} 
+          editingTask={editingTask}
           organizationId={organizationId}
           projectId={projectIdString}
           onTaskCreated={(newTask) => {
             setTasks([...tasks, newTask]);
+          }}
+          onTaskUpdated={(updatedTask) => {
+            setTasks(tasks.map(t => t.id === updatedTask.id ? updatedTask : t));
           }} 
         />
       )}
@@ -249,31 +307,36 @@ export default function OrganizationProjectsTasks() {
   );
 }
 
-interface NewTaskModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  organizationId: string | undefined;
-  projectId: string | undefined;
-  onTaskCreated: (task: Task) => void;
-}
-
-function NewTaskModal({ isOpen, onClose, organizationId, projectId, onTaskCreated }: NewTaskModalProps) {
+function TaskModal({ isOpen, onClose, editingTask, organizationId, projectId, onTaskCreated, onTaskUpdated }: TaskModalProps) {
   if (!organizationId || !projectId) return null;
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
-  const [dueDate, setDueDate] = useState('');
-  const [assignee, setAssignee] = useState('');
+  const isEditing = !!editingTask;
+  const [title, setTitle] = useState(editingTask?.title || '');
+  const [description, setDescription] = useState(editingTask?.description || '');
+  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>(editingTask?.priority || 'medium');
+  const [dueDate, setDueDate] = useState(editingTask?.dueDate || '');
+  const [assignee, setAssignee] = useState(editingTask?.assignee || '');
+  const [status, setStatus] = useState(editingTask?.status || 'pending');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const { user } = useAuth();
   
-  // Fetch team members when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setTitle(editingTask?.title || '');
+      setDescription(editingTask?.description || '');
+      setPriority(editingTask?.priority || 'medium');
+      setDueDate(editingTask?.dueDate || '');
+      setAssignee(editingTask?.assignee || '');
+      setStatus(editingTask?.status || 'pending');
+    }
+  }, [isOpen, editingTask]);
+  
   useEffect(() => {
     const fetchTeamMembers = async () => {
-      if (!isOpen || !projectId) return;
+      if (!isOpen || !projectId || !organizationId) return;
       try {
-        const membersData = await queryDocuments('projectMembers', [
+        const membersData = await queryDocuments('team', [
+          where('organizationId', '==', organizationId),
           where('projectId', '==', projectId)
         ]);
         setTeamMembers(membersData as TeamMember[]);
@@ -282,7 +345,7 @@ function NewTaskModal({ isOpen, onClose, organizationId, projectId, onTaskCreate
       }
     };
     fetchTeamMembers();
-  }, [isOpen, projectId]);
+  }, [isOpen, projectId, organizationId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -292,33 +355,58 @@ function NewTaskModal({ isOpen, onClose, organizationId, projectId, onTaskCreate
     try {
       setIsSubmitting(true);
       
-      // Create new task in Firestore
-      const taskData = {
-        title,
-        description,
-        priority,
-        dueDate,
-        assignee: assignee || 'Unassigned',
-        assignedTo: assignee || undefined,
-        status: 'pending' as const,
-        organizationId,
-        projectId,
-        createdBy: user.uid,
-        createdAt: serverTimestamp(),
-        timeSpent: 0,
-      };
-      
-      await createDocument('tasks', taskData);
+      if (isEditing && editingTask) {
+        const updateData: any = {
+          title,
+          description,
+          priority,
+          dueDate,
+          assignee: assignee || 'Unassigned',
+          assignedTo: assignee || undefined,
+          status,
+        };
+        
+        if (status === 'completed' && editingTask.status !== 'completed') {
+          updateData.completedAt = serverTimestamp();
+        } else if (status !== 'completed') {
+          updateData.completedAt = null;
+        }
+        
+        await updateDocument('tasks', editingTask.id, updateData);
+        
+        onTaskUpdated({
+          ...editingTask,
+          ...updateData,
+          completedAt: status === 'completed' && editingTask.status !== 'completed' ? new Date() : editingTask.completedAt,
+        });
+      } else {
+        const taskData = {
+          title,
+          description,
+          priority,
+          dueDate,
+          assignee: assignee || 'Unassigned',
+          assignedTo: assignee || undefined,
+          status: 'pending' as const,
+          organizationId,
+          projectId,
+          createdBy: user.uid,
+          createdAt: serverTimestamp(),
+          timeSpent: 0,
+        };
+        
+        const newTaskId = await createDocument('tasks', taskData);
+        
+        onTaskCreated({
+          id: newTaskId,
+          ...taskData,
+          createdAt: new Date(),
+        });
+      }
       
       onClose();
-      
-      onTaskCreated({
-        id: `temp-${Date.now()}`,
-        ...taskData,
-        createdAt: new Date(),
-      });
     } catch (error) {
-      console.error('Error creating task:', error);
+      console.error(`Error ${isEditing ? 'updating' : 'creating'} task:`, error);
     } finally {
       setIsSubmitting(false);
     }
@@ -330,15 +418,15 @@ function NewTaskModal({ isOpen, onClose, organizationId, projectId, onTaskCreate
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white">Create New Task</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white">{isEditing ? 'Edit Task' : 'Create New Task'}</h3>
         </div>
         
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+            <label htmlFor="task-title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
             <input
               type="text"
-              id="title"
+              id="task-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
@@ -347,9 +435,9 @@ function NewTaskModal({ isOpen, onClose, organizationId, projectId, onTaskCreate
           </div>
           
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+            <label htmlFor="task-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
             <textarea
-              id="description"
+              id="task-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
@@ -357,10 +445,26 @@ function NewTaskModal({ isOpen, onClose, organizationId, projectId, onTaskCreate
             />
           </div>
           
+          {isEditing && (
+            <div>
+              <label htmlFor="task-status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+              <select
+                id="task-status"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as 'pending' | 'in-progress' | 'completed')}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+              >
+                <option value="pending">To Do</option>
+                <option value="in-progress">In Progress</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+          )}
+          
           <div>
-            <label htmlFor="priority" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Priority</label>
+            <label htmlFor="task-priority" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Priority</label>
             <select
-              id="priority"
+              id="task-priority"
               value={priority}
               onChange={(e) => setPriority(e.target.value as 'low' | 'medium' | 'high')}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
@@ -372,9 +476,9 @@ function NewTaskModal({ isOpen, onClose, organizationId, projectId, onTaskCreate
           </div>
           
           <div>
-            <label htmlFor="assignee" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assign To</label>
+            <label htmlFor="task-assignee" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assign To</label>
             <select
-              id="assignee"
+              id="task-assignee"
               value={assignee}
               onChange={(e) => setAssignee(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
@@ -389,10 +493,10 @@ function NewTaskModal({ isOpen, onClose, organizationId, projectId, onTaskCreate
           </div>
           
           <div>
-            <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Due Date</label>
+            <label htmlFor="task-dueDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Due Date</label>
             <input
               type="date"
-              id="dueDate"
+              id="task-dueDate"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
               required
@@ -413,11 +517,21 @@ function NewTaskModal({ isOpen, onClose, organizationId, projectId, onTaskCreate
               disabled={isSubmitting}
               className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Creating...' : 'Create Task'}
+              {isSubmitting ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Task' : 'Create Task')}
             </button>
           </div>
         </form>
       </div>
     </div>
   );
+}
+
+interface TaskModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  editingTask: Task | null;
+  organizationId: string | undefined;
+  projectId: string | undefined;
+  onTaskCreated: (task: Task) => void;
+  onTaskUpdated: (task: Task) => void;
 }

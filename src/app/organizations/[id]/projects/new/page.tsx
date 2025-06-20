@@ -15,6 +15,9 @@ export default function NewProjectPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showAiSection, setShowAiSection] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -65,6 +68,47 @@ export default function NewProjectPage() {
     }));
   };
 
+  const generateProjectWithAI = async () => {
+    if (!aiPrompt.trim()) return;
+
+    try {
+      setIsGenerating(true);
+      setError(null);
+
+      const response = await fetch('/api/ai/project-generator', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: aiPrompt,
+          organizationName: organization?.name,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate project');
+      }
+
+      const suggestion = await response.json();
+
+      setFormData(prev => ({
+        ...prev,
+        name: suggestion.name || '',
+        description: suggestion.description || '',
+        status: suggestion.suggestedStatus || 'planning'
+      }));
+
+      setShowAiSection(false);
+      setAiPrompt('');
+    } catch (error) {
+      console.error('Error generating project:', error);
+      setError('Failed to generate project with AI. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -85,20 +129,48 @@ export default function NewProjectPage() {
       
       const projectId = await createDocument('projects', projectData);
       
-      // Send project creation notifications
-      try {
-        await EnhancedNotificationService.notifyProjectCreated({
-          projectId,
-          projectName: formData.name,
-          creatorUserId: user.uid,
-          organizationId,
-          organizationName: organization.name
-        });
-      } catch (notificationError) {
-        console.error('Failed to send project creation notifications:', notificationError);
-        // Don't block the project creation if notifications fail
+      if (organizationId && projectId) {
+        try {
+          const { getOrganizationMembers } = await import('@/lib/firebase/organizationService');
+          const { createDocument: createTeamDocument } = await import('@/lib/firebase/firestoreService');
+          const { serverTimestamp } = await import('firebase/firestore');
+
+          const orgMembers = await getOrganizationMembers(organizationId);
+          const owner = orgMembers.find(member => member.role === 'owner');
+
+          if (owner && owner.userId !== user.uid) {
+            const ownerTeamData = {
+              name: owner.userProfile?.displayName || owner.userProfile?.email || 'Organization Owner',
+              email: owner.userProfile?.email || '',
+              photoURL: owner.userProfile?.photoURL,
+              role: 'Project Manager',
+              organizationId,
+              projectId,
+              userId: owner.userId,
+              createdBy: user.uid,
+              createdAt: serverTimestamp(),
+            };
+            await createTeamDocument('team', ownerTeamData);
+          }
+
+          const creatorTeamData = {
+            name: user.displayName || user.email || 'Project Creator',
+            email: user.email || '',
+            photoURL: user.photoURL,
+            role: 'Project Lead',
+            organizationId,
+            projectId,
+            userId: user.uid,
+            createdBy: user.uid,
+            createdAt: serverTimestamp(),
+          };
+          await createTeamDocument('team', creatorTeamData);
+
+        } catch (teamError) {
+          console.error('Error adding automatic team members:', teamError);
+        }
       }
-      
+
       router.push(`/organizations/${organizationId}/projects/${projectId}`);
     } catch (error) {
       console.error('Error creating project:', error);
@@ -144,6 +216,113 @@ export default function NewProjectPage() {
         <p className="text-gray-600 dark:text-gray-300">
           Add a new project to {organization.name}
         </p>
+      </div>
+
+      {/* AI Generation Section */}
+      <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white mb-1">
+                  AI Project Generator
+                </h2>
+                <p className="text-purple-100 text-sm">
+                  Let AI help you create the perfect project structure
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAiSection(!showAiSection)}
+              className={`bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-all duration-200 flex items-center space-x-2 focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-purple-600 shadow-md hover:shadow-lg ${showAiSection ? 'ring-2 ring-white/30' : ''}`}
+              aria-label={showAiSection ? 'Hide AI Generator' : 'Show AI Generator'}
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+              </svg>
+              <span className="font-medium">{showAiSection ? 'Hide Generator' : 'Use AI Generator'}</span>
+            </button>
+          </div>
+        </div>
+
+        {showAiSection && (
+          <div className="p-6 space-y-6">
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <div className="flex items-start space-x-3">
+                <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
+                    AI-Powered Project Creation
+                  </h3>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Describe your project idea and our AI will generate a comprehensive project name, description, and initial structure for you.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="aiPrompt" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                Describe your project idea
+              </label>
+              <textarea
+                id="aiPrompt"
+                value={aiPrompt}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value.length <= 500) {
+                    setAiPrompt(value);
+                  }
+                }}
+                rows={4}
+                maxLength={500}
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white transition-colors resize-none"
+                placeholder="e.g., 'A mobile app for tracking fitness goals with social features and gamification elements' or 'Website redesign for an e-commerce platform to improve user experience and conversion rates'"
+              />
+              <div className="mt-2 flex items-center justify-between">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Be as detailed as possible for better AI suggestions
+                </p>
+                <span className={`text-xs ${aiPrompt.length > 400 ? 'text-red-600 dark:text-red-400' : aiPrompt.length > 50 ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                  {aiPrompt.length}/500 characters
+                </span>
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={generateProjectWithAI}
+                disabled={isGenerating || !aiPrompt.trim()}
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-6 py-3 rounded-lg transition-all duration-200 flex items-center space-x-2 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-md font-medium"
+              >
+                {isGenerating ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
+                    <span>Generating Project...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                    </svg>
+                    <span>Generate with AI</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Project Form */}
@@ -225,6 +404,7 @@ export default function NewProjectPage() {
                 id="dueDate"
                 name="dueDate"
                 value={formData.dueDate}
+                min={formData.startDate || undefined}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               />

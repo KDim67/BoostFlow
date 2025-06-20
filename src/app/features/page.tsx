@@ -1,5 +1,5 @@
-import Link from 'next/link';
 import Image from 'next/image';
+import Link from 'next/link';
 
 export const metadata = {
   title: 'Features - BoostFlow',
@@ -47,7 +47,7 @@ export default function FeaturesPage() {
                   <svg className="h-6 w-6 text-blue-600 dark:text-blue-400 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="text-gray-700 dark:text-gray-300">Smart scheduling and task prioritization</span>
+                  <span className="text-gray-700 dark:text-gray-300">Task prioritization</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="h-6 w-6 text-blue-600 dark:text-blue-400 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -89,28 +89,28 @@ export default function FeaturesPage() {
               <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-1 inline-block mb-4">
                 <span className="text-purple-600 dark:text-purple-400 font-medium text-sm px-3 py-1">AI-Powered Analytics</span>
               </div>
-              <h2 className="text-3xl font-bold mb-4">Gain Valuable Insights</h2>
+              <h2 className="text-3xl font-bold mb-4">AI-Powered Project Intelligence</h2>
               <p className="text-gray-600 dark:text-gray-300 mb-6">
-                Transform your data into actionable insights with BoostFlow's advanced analytics and predictive modeling capabilities.
+                Get intelligent insights about your project performance with AI that analyzes task patterns, team productivity, and identifies optimization opportunities.
               </p>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-start">
                   <svg className="h-6 w-6 text-purple-600 dark:text-purple-400 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="text-gray-700 dark:text-gray-300">Real-time performance dashboards</span>
+                  <span className="text-gray-700 dark:text-gray-300">Smart task completion analysis and bottleneck detection</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="h-6 w-6 text-purple-600 dark:text-purple-400 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="text-gray-700 dark:text-gray-300">Predictive analytics and trend forecasting</span>
+                  <span className="text-gray-700 dark:text-gray-300">Productivity optimization recommendations</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="h-6 w-6 text-purple-600 dark:text-purple-400 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="text-gray-700 dark:text-gray-300">Custom reports and data visualization</span>
+                  <span className="text-gray-700 dark:text-gray-300">Risk identification and workload distribution insights</span>
                 </li>
               </ul>
               <Link 
@@ -128,28 +128,28 @@ export default function FeaturesPage() {
               <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-1 inline-block mb-4">
                 <span className="text-green-600 dark:text-green-400 font-medium text-sm px-3 py-1">Team Collaboration</span>
               </div>
-              <h2 className="text-3xl font-bold mb-4">Enhance Team Collaboration</h2>
+              <h2 className="text-3xl font-bold mb-4">Seamless Team Communication</h2>
               <p className="text-gray-600 dark:text-gray-300 mb-6">
-                BoostFlow brings your team together with real-time communication, file sharing, and project management tools.
+                Connect your team with powerful communication tools including organized channels, direct messaging, and real-time collaboration features.
               </p>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-start">
                   <svg className="h-6 w-6 text-green-600 dark:text-green-400 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="text-gray-700 dark:text-gray-300">Real-time document collaboration</span>
+                  <span className="text-gray-700 dark:text-gray-300">Organized channels for team discussions and project coordination</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="h-6 w-6 text-green-600 dark:text-green-400 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="text-gray-700 dark:text-gray-300">Team chat and video conferencing</span>
+                  <span className="text-gray-700 dark:text-gray-300">Direct messaging for private conversations between team members</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="h-6 w-6 text-green-600 dark:text-green-400 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="text-gray-700 dark:text-gray-300">Project management and task assignment</span>
+                  <span className="text-gray-700 dark:text-gray-300">Real-time messaging with typing indicators and message history</span>
                 </li>
               </ul>
               <Link 
@@ -190,12 +190,6 @@ export default function FeaturesPage() {
               </div>
               <h3 className="text-xl font-semibold mb-2">Advanced Security</h3>
               <p className="text-gray-600 dark:text-gray-300 mb-4">Enterprise-grade security features to protect your sensitive data and ensure compliance.</p>
-              <Link href="/features" className="text-blue-600 dark:text-blue-400 font-medium hover:underline inline-flex items-center">
-                Learn more
-                <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
             </div>
 
             {/* Additional Feature 2 */}
@@ -207,12 +201,6 @@ export default function FeaturesPage() {
               </div>
               <h3 className="text-xl font-semibold mb-2">Customizable Workflows</h3>
               <p className="text-gray-600 dark:text-gray-300 mb-4">Create custom workflows tailored to your team's specific needs and processes.</p>
-              <Link href="/features" className="text-purple-600 dark:text-purple-400 font-medium hover:underline inline-flex items-center">
-                Learn more
-                <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
             </div>
 
             {/* Additional Feature 3 */}
@@ -224,12 +212,6 @@ export default function FeaturesPage() {
               </div>
               <h3 className="text-xl font-semibold mb-2">Seamless Integrations</h3>
               <p className="text-gray-600 dark:text-gray-300 mb-4">Connect with your favorite tools and services for a unified workflow experience.</p>
-              <Link href="/features" className="text-green-600 dark:text-green-400 font-medium hover:underline inline-flex items-center">
-                Learn more
-                <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
             </div>
           </div>
         </div>

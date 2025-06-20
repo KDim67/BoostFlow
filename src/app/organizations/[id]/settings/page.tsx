@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/firebase/useAuth';
+import { getOrganization, hasOrganizationPermission, updateOrganization, getOrganizationMembers, updateOrganizationMembership, deleteOrganization } from '@/lib/firebase/organizationService';
+import { Organization, OrganizationMembership } from '@/lib/types/organization';
 import { getOrganization, hasOrganizationPermission } from '@/lib/firebase/organizationService';
 import { Organization } from '@/lib/types/organization';
 import { useFileUpload } from '@/lib/hooks/useFileUpload';
@@ -15,22 +17,19 @@ export default function OrganizationSettings() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('profile');
   const [formData, setFormData] = useState({
     name: '',
-    description: '',
-    logoUrl: '',
-    website: '',
-    email: '',
-    allowPublicProjects: false,
-    requireMfa: false,
-    sessionTimeout: 30,
-    dataRetentionDays: 90,
-    notificationSettings: {
-      email: true,
-      teams: false
-    }
+    description: ''
   });
+  const [members, setMembers] = useState<OrganizationMembership[]>([]);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [selectedNewOwner, setSelectedNewOwner] = useState<string>('');
+  const [isTransferring, setIsTransferring] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [showImageCropper, setShowImageCropper] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const { user } = useAuth();
@@ -45,10 +44,10 @@ export default function OrganizationSettings() {
         setIsLoading(true);
         setError(null);
         
-        const permission = await hasOrganizationPermission(user.uid, organizationId, 'admin');
+        const permission = await hasOrganizationPermission(user.uid, organizationId, 'owner');
         
         if (!permission) {
-          setError('You do not have permission to manage settings for this organization.');
+          setError('You do not have permission to manage settings for this organization. Only organization owners can access settings.');
           setIsLoading(false);
           return;
         }
@@ -58,20 +57,12 @@ export default function OrganizationSettings() {
         if (orgData) {
           setFormData({
             name: orgData.name || '',
-            description: orgData.description || '',
-            logoUrl: orgData.logoUrl || '',
-            website: orgData.website || '',
-            email: orgData.email || '',
-            allowPublicProjects: orgData.allowPublicProjects || false,
-            requireMfa: orgData.requireMfa || false,
-            sessionTimeout: orgData.sessionTimeout || 30,
-            dataRetentionDays: orgData.dataRetentionDays || 90,
-            notificationSettings: orgData.notificationSettings || {
-              email: true,
-              teams: false
-            }
+            description: orgData.description || ''
           });
         }
+
+        const membersData = await getOrganizationMembers(organizationId);
+        setMembers(membersData);
       } catch (error) {
         console.error('Error fetching settings data:', error);
         setError('Failed to load settings data. Please try again.');
@@ -92,9 +83,10 @@ export default function OrganizationSettings() {
     }));
   };
 
+
   const handleNotificationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, checked } = e.target;
-    
+
     setFormData(prev => ({
       ...prev,
       notificationSettings: {
@@ -120,7 +112,7 @@ export default function OrganizationSettings() {
     try {
       // Get the cropped image as a blob
       const croppedImageBlob = await getCroppedImg(selectedImage, croppedAreaPixels, 0);
-      
+
       // Convert blob to file
       const croppedFile = new File([croppedImageBlob], 'organization-logo.jpg', {
         type: 'image/jpeg'
@@ -172,16 +164,117 @@ export default function OrganizationSettings() {
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    
-    setTimeout(() => {
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      if (!organizationId) {
+        throw new Error('Organization ID is required');
+      }
+
+      await updateOrganization(organizationId, {
+        name: formData.name,
+        description: formData.description
+      });
+
       if (organization) {
         setOrganization({
           ...organization,
-          ...formData
+          name: formData.name,
+          description: formData.description
         });
       }
+
+      setSuccessMessage('Organization settings saved successfully!');
+
+      setTimeout(() => {
+        setSuccessMessage(null);
+      }, 5000);
+    } catch (error) {
+      console.error('Error saving organization settings:', error);
+      setError('Failed to save settings. Please try again.');
+    } finally {
       setIsSaving(false);
-    }, 1500);
+    }
+  };
+
+  const handleTransferOwnership = async () => {
+    if (!selectedNewOwner || !organizationId || !user) return;
+
+    setIsTransferring(true);
+    setError(null);
+
+    try {
+      const currentOwnerMembership = members.find(m => m.userId === user.uid && m.role === 'owner');
+      const newOwnerMembership = members.find(m => m.userId === selectedNewOwner);
+
+      if (!currentOwnerMembership || !newOwnerMembership) {
+        throw new Error('Invalid ownership transfer');
+      }
+
+      await updateOrganizationMembership(currentOwnerMembership.id, { role: 'admin' });
+      await updateOrganizationMembership(newOwnerMembership.id, { role: 'owner' });
+
+      const updatedMembers = members.map(member => {
+        if (member.id === currentOwnerMembership.id) {
+          return { ...member, role: 'admin' as const };
+        }
+        if (member.id === newOwnerMembership.id) {
+          return { ...member, role: 'owner' as const };
+        }
+        return member;
+      });
+
+      setMembers(updatedMembers);
+      setShowTransferModal(false);
+      setSelectedNewOwner('');
+      setSuccessMessage('Ownership transferred successfully!');
+
+      setTimeout(() => {
+        setSuccessMessage(null);
+      }, 5000);
+    } catch (error) {
+      console.error('Error transferring ownership:', error);
+      setError('Failed to transfer ownership. Please try again.');
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
+  const handleDeleteOrganization = async () => {
+    if (!user || !organizationId || !organization) return;
+    if (deleteConfirmText !== organization.name) {
+      setError('Organization name does not match. Please type the exact name.');
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await deleteOrganization(organizationId);
+      setSuccessMessage('Organization deleted successfully!');
+      setShowDeleteModal(false);
+
+      setTimeout(() => {
+        window.location.href = '/organizations';
+      }, 2000);
+    } catch (error) {
+      console.error('Error deleting organization:', error);
+      setError('Failed to delete organization. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const getEligibleMembers = () => {
+    return members.filter(member =>
+      member.status === 'active' &&
+      member.role !== 'owner' &&
+      member.userId !== user?.uid
+    );
+  };
+
+  const getDisplayName = (member: OrganizationMembership) => {
+    return member.userProfile?.displayName || member.userProfile?.email || 'Unknown User';
   };
 
   if (isLoading) {
@@ -238,22 +331,10 @@ export default function OrganizationSettings() {
               Profile
             </button>
             <button
-              onClick={() => setActiveTab('security')}
-              className={`py-4 px-4 rounded-t-lg transition-all duration-200 ${activeTab === 'security' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400 bg-white dark:bg-gray-800' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'} font-medium`}
-            >
-              Security
-            </button>
-            <button
               onClick={() => setActiveTab('advanced')}
               className={`py-4 px-4 rounded-t-lg transition-all duration-200 ${activeTab === 'advanced' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400 bg-white dark:bg-gray-800' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'} font-medium`}
             >
               Advanced
-            </button>
-            <button
-              onClick={() => setActiveTab('notifications')}
-              className={`py-4 px-4 rounded-t-lg transition-all duration-200 ${activeTab === 'notifications' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400 bg-white dark:bg-gray-800' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'} font-medium`}
-            >
-              Notifications
             </button>
           </nav>
         </div>
@@ -267,6 +348,28 @@ export default function OrganizationSettings() {
                 <p className="text-gray-600 dark:text-gray-400">Update your organization's basic information and branding.</p>
               </div>
               
+              {successMessage && (
+                <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 text-green-600 dark:text-green-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <p className="text-green-700 dark:text-green-300 font-medium">{successMessage}</p>
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 text-red-600 dark:text-red-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <p className="text-red-700 dark:text-red-300 font-medium">{error}</p>
+                  </div>
+                </div>
+              )}
+
               <form onSubmit={handleSaveSettings} className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="md:col-span-2">
@@ -308,9 +411,9 @@ export default function OrganizationSettings() {
                       {/* Current Logo Preview */}
                       {formData.logoUrl && (
                         <div className="flex items-center space-x-4">
-                          <img 
-                            src={formData.logoUrl} 
-                            alt="Organization logo" 
+                          <img
+                            src={formData.logoUrl}
+                            alt="Organization logo"
                             className="w-16 h-16 rounded-lg object-cover border border-gray-300 dark:border-gray-600"
                           />
                           <div>
@@ -325,7 +428,7 @@ export default function OrganizationSettings() {
                           </div>
                         </div>
                       )}
-                      
+
                       {/* File Upload */}
                       <div className="flex items-center space-x-4">
                         <input
@@ -403,101 +506,7 @@ export default function OrganizationSettings() {
             </div>
           )}
 
-          {/* Security Settings */}
-          {activeTab === 'security' && (
-            <div className="max-w-2xl">
-              <div className="mb-8">
-                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">Security Settings</h2>
-                <p className="text-gray-600 dark:text-gray-400">Configure security policies and access controls for your organization.</p>
-              </div>
-              
-              <form onSubmit={handleSaveSettings} className="space-y-8">
-                <div className="space-y-6">
-                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-                    <div className="flex items-start space-x-4">
-                      <input
-                        type="checkbox"
-                        id="requireMfa"
-                        name="requireMfa"
-                        checked={formData.requireMfa}
-                        onChange={handleInputChange}
-                        className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
-                      />
-                      <div className="flex-1">
-                        <label htmlFor="requireMfa" className="block text-sm font-semibold text-gray-900 dark:text-white mb-1">
-                          Multi-Factor Authentication
-                        </label>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Require all organization members to enable MFA for enhanced security
-                        </p>
-                      </div>
-                    </div>
-                  </div>
 
-                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-                    <div className="flex items-start space-x-4">
-                      <input
-                        type="checkbox"
-                        id="allowPublicProjects"
-                        name="allowPublicProjects"
-                        checked={formData.allowPublicProjects}
-                        onChange={handleInputChange}
-                        className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
-                      />
-                      <div className="flex-1">
-                        <label htmlFor="allowPublicProjects" className="block text-sm font-semibold text-gray-900 dark:text-white mb-1">
-                          Public Projects
-                        </label>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Allow projects to be made visible to users outside the organization
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-                    <label htmlFor="sessionTimeout" className="block text-sm font-semibold text-gray-900 dark:text-white mb-3">
-                      Session Timeout
-                    </label>
-                    <div className="flex items-center space-x-4">
-                      <input
-                        type="number"
-                        id="sessionTimeout"
-                        name="sessionTimeout"
-                        value={formData.sessionTimeout}
-                        onChange={handleInputChange}
-                        min="5"
-                        max="1440"
-                        className="w-32 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
-                      />
-                      <span className="text-sm text-gray-600 dark:text-gray-400">minutes</span>
-                    </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                      Users will be automatically logged out after this period of inactivity
-                    </p>
-                  </div>
-                </div>
-
-                <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                  >
-                    {isSaving ? (
-                      <span className="flex items-center">
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Saving...
-                      </span>
-                    ) : 'Save Security Settings'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
 
           {/* Advanced Settings */}
           {activeTab === 'advanced' && (
@@ -507,131 +516,158 @@ export default function OrganizationSettings() {
                 <p className="text-gray-600 dark:text-gray-400">Configure advanced options and manage organization lifecycle.</p>
               </div>
               
-              <form onSubmit={handleSaveSettings} className="space-y-8">
-                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-                  <label htmlFor="dataRetentionDays" className="block text-sm font-semibold text-gray-900 dark:text-white mb-3">
-                    Data Retention Period
-                  </label>
-                  <div className="flex items-center space-x-4">
-                    <input
-                      type="number"
-                      id="dataRetentionDays"
-                      name="dataRetentionDays"
-                      value={formData.dataRetentionDays}
-                      onChange={handleInputChange}
-                      min="30"
-                      max="3650"
-                      className="w-32 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
-                    />
-                    <span className="text-sm text-gray-600 dark:text-gray-400">days</span>
-                  </div>
-                  <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">
-                    Logs and activity data will be automatically deleted after this period to comply with data retention policies
-                  </p>
-                </div>
-
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-4">Danger Zone</h3>
-                  <p className="text-sm text-red-700 dark:text-red-300 mb-6">
-                    These actions are destructive and cannot be undone. Please proceed with extreme caution.
-                  </p>
-                  <div className="space-y-3">
-                    <button
-                      type="button"
-                      className="w-full sm:w-auto px-6 py-3 border-2 border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-all duration-200 font-medium"
-                    >
-                      Transfer Ownership
-                    </button>
-                    <button
-                      type="button"
-                      className="w-full sm:w-auto px-6 py-3 border-2 border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-all duration-200 font-medium ml-0 sm:ml-3"
-                    >
-                      Delete Organization
-                    </button>
-                  </div>
-                </div>
-
-                <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-4">Danger Zone</h3>
+                <p className="text-sm text-red-700 dark:text-red-300 mb-6">
+                  These actions are destructive and cannot be undone. Please proceed with extreme caution.
+                </p>
+                <div className="space-y-3">
                   <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                    type="button"
+                    onClick={() => setShowTransferModal(true)}
+                    className="w-full sm:w-auto px-6 py-3 border-2 border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-all duration-200 font-medium"
                   >
-                    {isSaving ? (
-                      <span className="flex items-center">
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Saving...
-                      </span>
-                    ) : 'Save Advanced Settings'}
+                    Transfer Ownership
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteModal(true)}
+                    className="w-full sm:w-auto px-6 py-3 border-2 border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-all duration-200 font-medium ml-0 sm:ml-3"
+                  >
+                    Delete Organization
                   </button>
                 </div>
-              </form>
+              </div>
             </div>
           )}
 
-          {/* Notification Settings */}
-          {activeTab === 'notifications' && (
-            <div className="max-w-2xl">
-              <div className="mb-8">
-                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">Notification Settings</h2>
-                <p className="text-gray-600 dark:text-gray-400">Configure how and where you receive notifications about organization activity.</p>
+
+        </div>
+      </div>
+
+      {/* Transfer Ownership Modal */}
+      {showTransferModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Transfer Ownership
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                Select a member to transfer ownership to. This action cannot be undone.
+              </p>
+
+              <div className="mb-6">
+                <label htmlFor="newOwner" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  New Owner
+                </label>
+                <select
+                  id="newOwner"
+                  value={selectedNewOwner}
+                  onChange={(e) => setSelectedNewOwner(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="">Select a member...</option>
+                  {getEligibleMembers().map((member) => (
+                    <option key={member.id} value={member.userId}>
+                      {getDisplayName(member)} ({member.role})
+                    </option>
+                  ))}
+                </select>
               </div>
-              
-              <form onSubmit={handleSaveSettings} className="space-y-8">
-                <div className="space-y-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Notification Channels</h3>
-                  
-                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-                    <div className="flex items-start space-x-4">
-                      <input
-                        type="checkbox"
-                        id="email-notifications"
-                        name="email"
-                        checked={formData.notificationSettings.email}
-                        onChange={handleNotificationChange}
-                        className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
-                      />
-                      <div className="flex-1">
-                        <label htmlFor="email-notifications" className="block text-sm font-semibold text-gray-900 dark:text-white mb-1">
-                          Email Notifications
-                        </label>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Receive notifications via email for important organization updates and activities
-                        </p>
-                      </div>
 
-                    </div>
-                  </div>
-                  
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowTransferModal(false);
+                    setSelectedNewOwner('');
+                  }}
+                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleTransferOwnership}
+                  disabled={!selectedNewOwner || isTransferring}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isTransferring ? (
+                    <span className="flex items-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Transferring...
+                    </span>
+                  ) : 'Transfer Ownership'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-                </div>
+      {/* Delete Organization Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-4">
+                Delete Organization
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                This action cannot be undone. This will permanently delete the organization, all its projects, and remove all members.
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                Please type <strong>{organization?.name}</strong> to confirm:
+              </p>
 
-                <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                  >
-                    {isSaving ? (
-                      <span className="flex items-center">
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Saving...
-                      </span>
-                    ) : 'Save Notification Settings'}
-                  </button>
-                </div>
-              </form>
+              <div className="mb-6">
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="Type organization name here"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setDeleteConfirmText('');
+                    setError(null);
+                  }}
+                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteOrganization}
+                  disabled={deleteConfirmText !== organization?.name || isDeleting}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isDeleting ? (
+                    <span className="flex items-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Deleting...
+                    </span>
+                  ) : 'Delete Organization'}
+                </button>
+              </div>
             </div>
           )}
         </div>
       </div>
-      
+
       {/* Image Cropper Modal */}
       {showImageCropper && selectedImage && (
         <ImageCropper

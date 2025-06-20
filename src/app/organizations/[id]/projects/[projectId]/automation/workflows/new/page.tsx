@@ -98,9 +98,9 @@ export default function NewWorkflowPage() {
               Back to Workflows
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create New Workflow</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create New Manual Workflow</h1>
               <p className="text-gray-500 dark:text-gray-400 mt-1">
-                Build a new automated workflow for {project?.name || 'your project'} in {organization?.name || 'your organization'}
+                Build a new manual workflow for {project?.name || 'your project'} in {organization?.name || 'your organization'} - will run only when you execute it
               </p>
             </div>
           </div>
@@ -111,6 +111,7 @@ export default function NewWorkflowPage() {
             <WorkflowAutomation 
               projectId={projectIdString}
               currentUser={user.uid}
+              organizationId={organizationId}
             />
           )}
         </div>

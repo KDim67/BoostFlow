@@ -5,6 +5,8 @@ import SystemHealthCard from '@/components/platform-admin/SystemHealthCard';
 import PlatformMetricsChart from '@/components/platform-admin/PlatformMetricsChart';
 import RecentActivityLog from '@/components/platform-admin/RecentActivityLog';
 import { getPlatformMetrics, getResourceUtilization } from '@/lib/services/platform/platformService';
+
+import { NotificationService } from '@/lib/firebase/notificationService';
 import { usePlatformAuth } from '@/lib/firebase/usePlatformAuth';
 
 export default function PlatformAdminDashboard() {
@@ -23,6 +25,10 @@ export default function PlatformAdminDashboard() {
     networkBandwidth: 0
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+  const [announcementTitle, setAnnouncementTitle] = useState('');
+  const [announcementMessage, setAnnouncementMessage] = useState('');
+  const [isSendingAnnouncement, setIsSendingAnnouncement] = useState(false);
   const { user, isPlatformAdmin } = usePlatformAuth();
 
   useEffect(() => {
@@ -65,6 +71,46 @@ export default function PlatformAdminDashboard() {
     }
   };
 
+  const handleSendAnnouncement = async () => {
+    if (!announcementTitle.trim() || !announcementMessage.trim()) {
+      alert('Please fill in both title and message');
+      return;
+    }
+
+    try {
+      setIsSendingAnnouncement(true);
+      
+      const response = await fetch('/api/admin/users');
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+      
+      const { users } = await response.json();
+      
+      const notificationPromises = users.map((user: any) => 
+        NotificationService.createNotification(
+          user.uid,
+          announcementTitle,
+          announcementMessage,
+          'system_announcement',
+          undefined
+        )
+      );
+      
+      await Promise.all(notificationPromises);
+      
+      setAnnouncementTitle('');
+      setAnnouncementMessage('');
+      setShowAnnouncementModal(false);
+      alert(`System announcement sent to ${users.length} users successfully!`);
+    } catch (error) {
+      console.error('Error sending system announcement:', error);
+      alert('Failed to send system announcement. Please try again.');
+    } finally {
+      setIsSendingAnnouncement(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center mb-6">
@@ -73,11 +119,14 @@ export default function PlatformAdminDashboard() {
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Monitor system health and platform metrics</p>
         </div>
         <div className="flex space-x-3">
-          <button className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          <button 
+            onClick={() => setShowAnnouncementModal(true)}
+            className="inline-flex items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
             </svg>
-            Export Report
+            Send System Announcement
           </button>
           <button 
             onClick={handleRefreshData}
@@ -292,6 +341,65 @@ export default function PlatformAdminDashboard() {
           <RecentActivityLog />
         </div>
       </div>
+
+      {/* System Announcement Modal */}
+      {showAnnouncementModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">Send System Announcement</h3>
+            </div>
+            
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              handleSendAnnouncement();
+            }} className="p-6 space-y-4">
+              <div>
+                <label htmlFor="announcement-title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+                <input
+                  type="text"
+                  id="announcement-title"
+                  value={announcementTitle}
+                  onChange={(e) => setAnnouncementTitle(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="Enter announcement title"
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="announcement-message" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Message</label>
+                <textarea
+                  id="announcement-message"
+                  value={announcementMessage}
+                  onChange={(e) => setAnnouncementMessage(e.target.value)}
+                  required
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="Enter announcement message"
+                />
+              </div>
+              
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowAnnouncementModal(false)}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSendingAnnouncement}
+                  className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSendingAnnouncement ? 'Sending...' : 'Send Announcement'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -34,15 +34,15 @@ export class NotificationService {
       const notificationRef = doc(collection(db, 'notifications'));
       const notificationData: Omit<Notification, 'id'> = {
         userId,
-        organizationId,
+        ...(organizationId !== undefined && organizationId !== null && { organizationId }),
         title,
         message,
         type,
         read: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        actionUrl,
-        metadata
+        ...(actionUrl !== undefined && actionUrl !== null && { actionUrl }),
+        ...(metadata !== undefined && metadata !== null && { metadata })
       };
 
       await setDoc(notificationRef, notificationData);
@@ -145,6 +145,23 @@ export class NotificationService {
     }
   }
 
+  static async updateNotification(
+    notificationId: string,
+    updates: Partial<Notification>
+  ): Promise<void> {
+    try {
+      const notificationRef = doc(db, 'notifications', notificationId);
+      await updateDoc(notificationRef, {
+        ...updates,
+        updatedAt: serverTimestamp()
+      });
+      logger.info(`Notification updated: ${notificationId}`);
+    } catch (error) {
+      logger.error('Error updating notification:', error as Error);
+      throw error;
+    }
+  }
+
   static async markAllAsRead(userId: string): Promise<void> {
     try {
       const notifications = await this.getUserNotifications(userId, 100, true);
@@ -190,7 +207,7 @@ export class NotificationService {
       const q = query(
         notificationsRef,
         where('userId', '==', userId),
-        where('type', '==', 'team_invite'),
+        where('type', '==', 'organization_invite'),
         where('metadata.membershipId', '==', membershipId)
       );
 

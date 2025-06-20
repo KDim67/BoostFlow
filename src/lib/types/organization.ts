@@ -28,10 +28,8 @@ export interface Organization {
     teams: boolean;
   };
   planFeatures?: {
-    maxProjects: number;
     maxMembers: number;
     maxStorage: number;
-    advancedFeatures: boolean;
   };
   subscriptionDetails?: {
     teamSize: number;
@@ -66,6 +64,8 @@ export interface Project {
   createdBy: string;
   createdAt: any;
   members?: string[];
+  client?: string;
+  budget?: string;
   previousMetrics?: {
     totalTasks: number;
     completedTasks: number;

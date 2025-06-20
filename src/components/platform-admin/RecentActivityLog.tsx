@@ -59,9 +59,7 @@ const RecentActivityLog = ({ limit = 5 }: { limit?: number }) => {
     fetchActivityLogs();
   }, [limit]);
   
-  const handleViewAllActivity = () => {
-    router.push('/platform-admin/activity');
-  };
+
   
   const getSeverityLabel = (severity: string) => {
     switch(severity) {
@@ -180,15 +178,7 @@ const RecentActivityLog = ({ limit = 5 }: { limit?: number }) => {
           </table>
           
           <div className="mt-4 flex justify-between">
-            <button 
-              onClick={handleViewAllActivity}
-              className="text-indigo-600 hover:text-indigo-900 text-sm font-medium flex items-center"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-              View All Activity
-            </button>
+
             
             <button 
               onClick={() => {

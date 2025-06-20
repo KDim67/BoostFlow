@@ -1,16 +1,24 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { getAllUserProfiles, UserProfile, updateUserProfile } from '@/lib/firebase/userProfileService';
+import { getAllUserProfiles, UserProfile, updateUserProfile, deleteUserProfile } from '@/lib/firebase/userProfileService';
 import { timestampToDate } from '@/lib/firebase/firestoreService';
 import { where, orderBy, QueryConstraint } from 'firebase/firestore';
 import { queryDocuments } from '@/lib/firebase/firestoreService';
 import { PlatformRole } from '@/lib/firebase/usePlatformAuth';
-import { CSVLink } from 'react-csv';
+import { getUserOrganizations } from '@/lib/firebase/organizationService';
+import { OrganizationWithDetails } from '@/lib/types/organization';
+
+import Badge from '@/components/Badge';
+
+interface UserWithOrganizations extends UserProfile {
+  organizations: string[];
+}
 
 export default function UserManagementPage() {
-  const [users, setUsers] = useState<UserProfile[]>([]);
-  const [filteredUsers, setFilteredUsers] = useState<UserProfile[]>([]);
+  const [users, setUsers] = useState<UserWithOrganizations[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<UserWithOrganizations[]>([]);
+  const [paginatedUsers, setPaginatedUsers] = useState<UserWithOrganizations[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -18,6 +26,9 @@ export default function UserManagementPage() {
   const [roleFilter, setRoleFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [organizationFilter, setOrganizationFilter] = useState<string>('');
+  
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(5);
   
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -27,36 +38,46 @@ export default function UserManagementPage() {
   
   const [suspendModalOpen, setSuspendModalOpen] = useState<boolean>(false);
   const [suspensionReason, setSuspensionReason] = useState<string>('');
+  
+  const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
+  const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
 
-  const organizations = ['test', 'test2', 'testaes', 'adminscomp'];
+  const [allOrganizations, setAllOrganizations] = useState<string[]>([]);
 
-  const getCsvData = () => {
-    return filteredUsers.map(user => ({
-      Name: user.displayName || 'N/A',
-      Email: user.email,
-      Role: user.platformRole || 'User',
-      Status: user.suspended ? 'Suspended' : !user.updatedAt ? 'Inactive' : 'Active',
-      Organization: user.jobTitle || 'Not specified',
-      LastActive: user.updatedAt ? formatLastActive(user.updatedAt) : 'Never'
-    }));
-  };
 
-  const csvHeaders = [
-    { label: 'Name', key: 'Name' },
-    { label: 'Email', key: 'Email' },
-    { label: 'Role', key: 'Role' },
-    { label: 'Status', key: 'Status' },
-    { label: 'Organization', key: 'Organization' },
-    { label: 'Last Active', key: 'LastActive' }
-  ];
 
   useEffect(() => {
     const fetchUsers = async () => {
       try {
         setLoading(true);
         const userProfiles = await getAllUserProfiles();
-        setUsers(userProfiles);
-        setFilteredUsers(userProfiles);
+        
+        const usersWithOrganizations = await Promise.all(
+          userProfiles.map(async (user) => {
+            try {
+              const userOrgs = await getUserOrganizations(user.uid);
+              return {
+                ...user,
+                organizations: userOrgs.map(org => org.name)
+              };
+            } catch (error) {
+              console.error(`Error fetching organizations for user ${user.uid}:`, error);
+              return {
+                ...user,
+                organizations: []
+              };
+            }
+          })
+        );
+        
+        const orgSet = new Set<string>();
+        usersWithOrganizations.forEach(user => {
+          user.organizations.forEach(org => orgSet.add(org));
+        });
+        setAllOrganizations(Array.from(orgSet).sort());
+        
+        setUsers(usersWithOrganizations);
+        setFilteredUsers(usersWithOrganizations);
       } catch (err) {
         console.error('Error fetching users:', err);
         setError('Failed to load users. Please try again later.');
@@ -71,6 +92,14 @@ export default function UserManagementPage() {
   useEffect(() => {
     applyFilters();
   }, [searchQuery, roleFilter, statusFilter, organizationFilter, users]);
+
+  useEffect(() => {
+    applyPagination();
+  }, [filteredUsers, currentPage, pageSize]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [pageSize]);
 
   const applyFilters = () => {
     let result = [...users];
@@ -89,17 +118,38 @@ export default function UserManagementPage() {
     
     if (statusFilter) {
       if (statusFilter === 'active') {
-        result = result.filter(user => !!user.updatedAt);
+        result = result.filter(user => !user.suspended && !!user.updatedAt);
       } else if (statusFilter === 'inactive') {
-        result = result.filter(user => !user.updatedAt);
+        result = result.filter(user => !user.suspended && !user.updatedAt);
+      } else if (statusFilter === 'suspended') {
+        result = result.filter(user => user.suspended);
       }
     }
     
     if (organizationFilter) {
-      result = result.filter(user => user.jobTitle === organizationFilter);
+      result = result.filter(user => user.organizations.includes(organizationFilter));
     }
     
     setFilteredUsers(result);
+    setCurrentPage(1);
+  };
+
+  const applyPagination = () => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    setPaginatedUsers(filteredUsers.slice(startIndex, endIndex));
+  };
+
+  const totalPages = Math.ceil(filteredUsers.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize + 1;
+  const endIndex = Math.min(currentPage * pageSize, filteredUsers.length);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize);
   };
 
   const handleEditUser = (user: UserProfile) => {
@@ -115,18 +165,50 @@ export default function UserManagementPage() {
     setSuspendModalOpen(true);
   };
 
+  const handleDeleteUser = async (user: UserProfile) => {
+    setUserToDelete(user);
+    setDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!userToDelete) return;
+    
+    try {
+      await deleteUserProfile(userToDelete.uid);
+      
+      const updatedUsers = users.filter(u => u.uid !== userToDelete.uid);
+      setUsers(updatedUsers);
+      applyFilters();
+      setDeleteModalOpen(false);
+      setUserToDelete(null);
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      alert('Failed to delete user. Please try again.');
+    }
+  };
+
   const handleConfirmSuspension = async () => {
     if (!currentUser) return;
     
     try {
-      await updateUserProfile(currentUser.uid, { 
+      const updateData: any = {
         suspended: !currentUser.suspended,
         updatedAt: new Date()
-      });
+      };
+      
+      if (!currentUser.suspended) {
+        updateData.suspensionReason = suspensionReason || 'No reason provided';
+        updateData.suspendedAt = new Date();
+      } else {
+        updateData.suspensionReason = null;
+        updateData.suspendedAt = null;
+      }
+      
+      await updateUserProfile(currentUser.uid, updateData);
       
       const updatedUsers = users.map(u => {
         if (u.uid === currentUser.uid) {
-          return { ...u, suspended: !u.suspended, updatedAt: new Date() };
+          return { ...u, ...updateData };
         }
         return u;
       });
@@ -134,6 +216,7 @@ export default function UserManagementPage() {
       setUsers(updatedUsers);
       applyFilters();
       setSuspendModalOpen(false);
+      setSuspensionReason('');
     } catch (err) {
       console.error('Error suspending user:', err);
       alert('Failed to suspend user. Please try again.');
@@ -198,19 +281,6 @@ export default function UserManagementPage() {
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">User Management</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage platform users and their permissions</p>
         </div>
-        <div className="flex space-x-3">
-          <CSVLink 
-            data={getCsvData()} 
-            headers={csvHeaders}
-            filename={`users-export-${new Date().toISOString().split('T')[0]}.csv`}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            Export Users
-          </CSVLink>
-        </div>
       </div>
 
       {/* Filters */}
@@ -239,7 +309,6 @@ export default function UserManagementPage() {
               >
                 <option value="">All Roles</option>
                 <option value="user">User</option>
-                <option value="organization_admin">Organization Admin</option>
                 <option value="platform_moderator">Platform Moderator</option>
                 <option value="super_admin">Super Admin</option>
               </select>
@@ -265,7 +334,7 @@ export default function UserManagementPage() {
                 onChange={(e) => setOrganizationFilter(e.target.value)}
               >
                 <option value="">All Organizations</option>
-                {organizations.map((org) => (
+                {allOrganizations.map((org) => (
                   <option key={org} value={org}>{org}</option>
                 ))}
               </select>
@@ -278,6 +347,7 @@ export default function UserManagementPage() {
                 setRoleFilter('');
                 setStatusFilter('');
                 setOrganizationFilter('');
+                setCurrentPage(1);
               }}
               className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none"
             >
@@ -292,8 +362,22 @@ export default function UserManagementPage() {
 
       {/* Users Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+        <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 flex justify-between items-center">
           <h2 className="text-base font-medium text-gray-900 dark:text-white">Users</h2>
+          <div className="flex items-center space-x-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Show:</label>
+            <select 
+              className="border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm"
+              value={pageSize}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={15}>15</option>
+              <option value={20}>20</option>
+            </select>
+            <span className="text-sm text-gray-700 dark:text-gray-300">per page</span>
+          </div>
         </div>
         {loading ? (
           <div className="p-8 text-center">
@@ -333,8 +417,8 @@ export default function UserManagementPage() {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredUsers.length > 0 ? (
-                  filteredUsers.map((user) => (
+                {paginatedUsers.length > 0 ? (
+                  paginatedUsers.map((user) => (
                     <tr key={user.uid}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
@@ -355,12 +439,29 @@ export default function UserManagementPage() {
                         {user.platformRole || 'User'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${user.suspended ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : !user.updatedAt ? 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400' : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'}`}>
-                          {user.suspended ? 'Suspended' : !user.updatedAt ? 'Inactive' : 'Active'}
-                        </span>
+                        <Badge 
+                          type="status" 
+                          value={user.suspended ? 'suspended' : !user.updatedAt ? 'inactive' : 'active'} 
+                          size="sm" 
+                        />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {user.jobTitle || 'Not specified'}
+                        {user.organizations.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {user.organizations.slice(0, 2).map((org, index) => (
+                              <span key={index} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200">
+                                {org}
+                              </span>
+                            ))}
+                            {user.organizations.length > 2 && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                                +{user.organizations.length - 2} more
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          'Not specified'
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {formatLastActive(user.updatedAt)}
@@ -374,9 +475,15 @@ export default function UserManagementPage() {
                         </button>
                         <button 
                           onClick={() => handleSuspendUser(user)}
-                          className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
+                          className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 mr-3"
                         >
                           {user.suspended ? 'Unsuspend' : 'Suspend'}
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteUser(user)}
+                          className="text-red-700 dark:text-red-500 hover:text-red-900 dark:hover:text-red-300 font-medium"
+                        >
+                          Remove
                         </button>
                       </td>
                     </tr>
@@ -396,29 +503,68 @@ export default function UserManagementPage() {
         {/* Pagination */}
         <div className="bg-white dark:bg-gray-800 px-4 py-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 sm:px-6">
           <div className="flex-1 flex justify-between sm:hidden">
-            <button className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+            <button 
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               Previous
             </button>
-            <button className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+            <button 
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               Next
             </button>
           </div>
           <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
             <div>
               <p className="text-sm text-gray-700 dark:text-gray-300">
-                Showing <span className="font-medium">1</span> to <span className="font-medium">{filteredUsers.length}</span> of{' '}
+                Showing <span className="font-medium">{filteredUsers.length > 0 ? startIndex : 0}</span> to <span className="font-medium">{endIndex}</span> of{' '}
                 <span className="font-medium">{filteredUsers.length}</span> results
               </p>
             </div>
             <div>
               <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                <button className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
+                <button 
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   Previous
                 </button>
-                <button className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-indigo-50 dark:bg-indigo-900/20 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-gray-50 dark:hover:bg-gray-700">
-                  1
-                </button>
-                <button className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700">
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                  let pageNumber;
+                  if (totalPages <= 5) {
+                    pageNumber = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNumber = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNumber = totalPages - 4 + i;
+                  } else {
+                    pageNumber = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNumber}
+                      onClick={() => handlePageChange(pageNumber)}
+                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                        currentPage === pageNumber
+                          ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-500 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400'
+                          : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      {pageNumber}
+                    </button>
+                  );
+                })}
+                <button 
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   Next
                 </button>
               </nav>
@@ -459,7 +605,6 @@ export default function UserManagementPage() {
                   onChange={(e) => setEditedRole(e.target.value)}
                 >
                   <option value="user">User</option>
-                  <option value="organization_admin">Organization Admin</option>
                   <option value="platform_moderator">Platform Moderator</option>
                   <option value="super_admin">Super Admin</option>
                 </select>
@@ -520,7 +665,47 @@ export default function UserManagementPage() {
           </div>
         </div>
       )}
+
+      {/* Delete User Modal */}
+      {deleteModalOpen && userToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-semibold mb-4 text-red-600 dark:text-red-400">Remove User</h2>
+            <p className="text-gray-700 dark:text-gray-300 mb-4">
+              Are you sure you want to permanently remove <strong>{userToDelete.displayName || userToDelete.email}</strong>? This action cannot be undone.
+            </p>
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3 mb-4">
+              <div className="flex">
+                <svg className="h-5 w-5 text-red-400 dark:text-red-300" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <div className="ml-3">
+                  <p className="text-sm text-red-800 dark:text-red-200">
+                    This will permanently delete the user's profile and cannot be recovered.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button 
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setUserToDelete(null);
+                }}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                Remove User
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-
 }

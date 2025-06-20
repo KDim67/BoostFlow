@@ -1,5 +1,5 @@
 import { User } from 'firebase/auth';
-import { createDocument, getDocument, updateDocument, getAllDocuments } from './firestoreService';
+import { createDocument, getDocument, updateDocument, getAllDocuments, deleteDocument } from './firestoreService';
 import { createLogger } from '../utils/logger';
 import { PlatformRole } from './usePlatformAuth';
 
@@ -22,14 +22,15 @@ export interface UserProfile {
   createdAt?: Date;
   updatedAt?: Date;
   suspended?: boolean;
+  suspensionReason?: string;
+  suspendedAt?: Date;
 }
 
 export interface UserSettings {
   theme?: 'light' | 'dark' | 'system';
   notifications?: {
     email?: boolean;
-    push?: boolean;
-    sms?: boolean;
+    website?: boolean;
   };
   language?: string;
 }
@@ -132,6 +133,16 @@ export const getUserByEmail = async (email: string): Promise<UserProfile | null>
     return user || null;
   } catch (error) {
     logger.error('Error getting user by email', error as Error, { email });
+    throw error;
+  }
+};
+
+export const deleteUserProfile = async (uid: string): Promise<void> => {
+  try {
+    await deleteDocument(USER_COLLECTION, uid);
+    logger.info(`User profile deleted for user: ${uid}`);
+  } catch (error) {
+    logger.error('Error deleting user profile', error as Error, { uid });
     throw error;
   }
 };

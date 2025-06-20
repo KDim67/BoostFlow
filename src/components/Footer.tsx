@@ -51,16 +51,7 @@ const Footer = () => {
                   Pricing
                 </Link>
               </li>
-              <li>
-                <Link href="#" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 text-sm">
-                  Integrations
-                </Link>
-              </li>
-              <li>
-                <Link href="#" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 text-sm">
-                  API
-                </Link>
-              </li>
+
             </ul>
           </div>
 
@@ -71,11 +62,6 @@ const Footer = () => {
               <li>
                 <Link href="/documentation" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 text-sm">
                   Documentation
-                </Link>
-              </li>
-              <li>
-                <Link href="/guides" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 text-sm">
-                  Guides
                 </Link>
               </li>
             </ul>

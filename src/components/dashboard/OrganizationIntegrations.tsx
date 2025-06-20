@@ -1,6 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useAuth } from '@/lib/firebase/useAuth';
+import { hasOrganizationPermission } from '@/lib/firebase/organizationService';
 import {
   Integration,
   getIntegration,
@@ -17,6 +20,7 @@ import {
   getProviderScopes,
   OAuthConfig
 } from '@/lib/services/integration/oauthHelpers';
+import Badge from '@/components/Badge';
 
 interface OrganizationIntegrationsProps {
   currentUser: string;
@@ -36,11 +40,23 @@ export default function OrganizationIntegrations({
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('list');
   const [isConnecting, setIsConnecting] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     const loadData = async () => {
+      if (!user || !organizationId) return;
+      
       try {
         setLoading(true);
+        setError(null);
+        
+        const permission = await hasOrganizationPermission(user.uid, organizationId, 'admin');
+        
+        if (!permission) {
+          setError('You do not have permission to manage integrations for this organization.');
+          setLoading(false);
+          return;
+        }
         
         const [providers, allIntegrations] = await Promise.all([
           getAvailableProviders(),
@@ -63,7 +79,7 @@ export default function OrganizationIntegrations({
     };
 
     loadData();
-  }, [organizationId]);
+  }, [user, organizationId]);
 
   const handleOAuthConnect = async (provider: string) => {
     try {
@@ -178,11 +194,30 @@ export default function OrganizationIntegrations({
   };
 
   if (loading) {
-    return <div className="p-4">Loading organization integrations...</div>;
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex justify-center items-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="p-4 text-red-500">{error}</div>;
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 max-w-2xl mx-auto">
+        <h2 className="text-xl font-semibold mb-4 text-red-600 dark:text-red-400">
+          {error}
+        </h2>
+        <p className="text-gray-600 dark:text-gray-400 mb-6">
+          You don't have the necessary permissions to manage integrations for this organization.
+        </p>
+        <Link 
+          href="/organizations"
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+        >
+          Back to Organizations
+        </Link>
+      </div>
+    );
   }
 
   const renderIntegrationsList = () => (
@@ -219,13 +254,7 @@ export default function OrganizationIntegrations({
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    int.status === 'active' 
-                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                      : 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
-                  }`}>
-                    {int.status}
-                  </span>
+                  <Badge type="status" value={int.status} size="sm" />
                   <button
                     onClick={() => {
                       setIntegration(int);
@@ -313,9 +342,7 @@ export default function OrganizationIntegrations({
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{integration.name}</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">{integration.description}</p>
           <div className="mt-1 flex items-center">
-            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${integration.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'}`}>
-              {integration.status === 'active' ? 'Active' : integration.status === 'error' ? 'Error' : 'Inactive'}
-            </span>
+            <Badge type="status" value={integration.status} size="sm" />
             <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
               Last synced: {integration.lastSyncAt ? new Date(integration.lastSyncAt).toLocaleString() : 'Never'}
             </span>

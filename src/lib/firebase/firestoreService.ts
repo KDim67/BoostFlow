@@ -150,7 +150,10 @@ export const getAllDocuments = async (
   return queryDocuments(collectionPath);
 };
 
-export const timestampToDate = (timestamp: Timestamp): Date => {
+export const timestampToDate = (timestamp: Timestamp | null | undefined): Date | null => {
+  if (!timestamp) {
+    return null;
+  }
   return timestamp.toDate();
 };
 

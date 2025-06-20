@@ -1,4 +1,5 @@
 'use client';
+
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 
@@ -101,12 +102,12 @@ export default function PricingPage() {
                     onChange={(e) => setTeamSize(parseInt(e.target.value))}
                     className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
                   />
-                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 px-1 mt-1">
-                    <span>1</span>
-                    <span>250</span>
-                    <span>500</span>
-                    <span>750</span>
-                    <span>1000</span>
+                  <div className="relative mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    <span className="absolute left-0">1</span>
+                    <span className="absolute -translate-x-1/2 left-1/4">250</span>
+                    <span className="absolute -translate-x-1/2 left-1/2">500</span>
+                    <span className="absolute -translate-x-1/2 left-3/4">750</span>
+                    <span className="absolute -translate-x-full left-full">1000</span>
                   </div>
                 </div>
                 {getCurrentDiscount() > 0 && (
@@ -405,7 +406,7 @@ export default function PricingPage() {
                 <tbody>
                   <tr className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                     <td className="py-4 px-6 text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 font-medium">Users</td>
-                    <td className="py-4 px-6 text-center text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">Up to 3</td>
+                    <td className="py-4 px-6 text-center text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">Up to 15</td>
                     <td className="py-4 px-6 text-center text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">Unlimited</td>
                     <td className="py-4 px-6 text-center text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">Unlimited</td>
                     <td className="py-4 px-6 text-center text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">Unlimited</td>

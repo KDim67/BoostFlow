@@ -6,10 +6,11 @@ import { useOrganization } from '@/lib/firebase/OrganizationProvider';
 import { useAuth } from '@/lib/firebase/useAuth';
 import { getDocument, queryDocuments } from '@/lib/firebase/firestoreService';
 import { getWorkflowsByProject } from '@/lib/services/automation/workflowService';
-import { getScheduledTasksByProject } from '@/lib/services/automation/schedulerService';
 import { hasOrganizationPermission } from '@/lib/firebase/organizationService';
 import { Project, OrganizationRole } from '@/lib/types/organization';
 import { where, orderBy, limit, Timestamp } from 'firebase/firestore';
+
+import Badge from '@/components/Badge';
 
 interface ProjectMetrics {
   totalTasks: number;
@@ -158,7 +159,7 @@ export default function ProjectAnalyticsPage() {
             title: task.title || 'Untitled Task',
             status: task.status || 'pending',
             priority: task.priority || 'medium',
-            assignee: task.assignee || 'Unassigned',
+            assignee: (task.assignee && task.assignee.trim() !== '') ? task.assignee.trim() : 'Unassigned',
             createdAt: safeToDate(task.createdAt) || new Date(),
             completedAt: safeToDate(task.completedAt),
             dueDate: safeToDate(task.dueDate),
@@ -263,6 +264,13 @@ export default function ProjectAnalyticsPage() {
     
     setIsGeneratingInsights(true);
     try {
+      const serializedTasks = tasks.slice(0, 20).map(task => ({
+        ...task,
+        createdAt: task.createdAt.toISOString(),
+        completedAt: task.completedAt?.toISOString(),
+        dueDate: task.dueDate?.toISOString()
+      }));
+
       const response = await fetch('/api/ai/insights', {
         method: 'POST',
         headers: {
@@ -272,7 +280,7 @@ export default function ProjectAnalyticsPage() {
           projectId,
           projectName: project.name,
           metrics,
-          tasks: tasks.slice(0, 20),
+          tasks: serializedTasks,
           timeframe: selectedTimeframe
         })
       });
@@ -574,11 +582,6 @@ export default function ProjectAnalyticsPage() {
                         </div>
                         <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">{insight.title}</h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 leading-relaxed">{insight.description}</p>
-                        {insight.actionable && (
-                          <button className="w-full text-sm bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/30 dark:to-blue-900/30 text-purple-700 dark:text-purple-300 px-4 py-2 rounded-lg hover:from-purple-100 hover:to-blue-100 dark:hover:from-purple-900/50 dark:hover:to-blue-900/50 transition-all focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 font-medium">
-                            Apply Suggestion
-                          </button>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -883,23 +886,16 @@ export default function ProjectAnalyticsPage() {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
-                              task.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                              task.status === 'in-progress' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                              isOverdue ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                              'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-                            }`}>
-                              {isOverdue && task.status !== 'completed' ? 'Overdue' : task.status}
-                            </span>
+                            <Badge 
+                              type="status" 
+                              value={isOverdue && task.status !== 'completed' ? 'overdue' : task.status} 
+                              variant="with-icon" 
+                              size="sm" 
+                              className="inline-flex px-3 py-1 font-semibold" 
+                            />
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
-                              task.priority === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                              task.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                              'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                            }`}>
-                              {task.priority}
-                            </span>
+                            <Badge type="priority" value={task.priority as 'low' | 'medium' | 'high'} variant="with-icon" size="md" className="inline-flex px-3 py-1 font-semibold" />
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-900 dark:text-gray-100 font-medium">
@@ -969,6 +965,8 @@ export default function ProjectAnalyticsPage() {
           taskTitle={assignModal.taskTitle}
           onClose={() => setAssignModal({isOpen: false, taskId: '', taskTitle: ''})}
           onSubmit={(assignee) => submitAssignTask(assignModal.taskId, assignee)}
+          organizationId={organizationId}
+          projectId={projectId}
         />
       )}
 
@@ -994,17 +992,42 @@ export default function ProjectAnalyticsPage() {
   );
 }
 
-// Assign Task Modal Component
+interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
 interface AssignTaskModalProps {
   isOpen: boolean;
   taskTitle: string;
   onClose: () => void;
   onSubmit: (assignee: string) => void;
+  organizationId: string;
+  projectId: string;
 }
 
-function AssignTaskModal({ isOpen, taskTitle, onClose, onSubmit }: AssignTaskModalProps) {
+function AssignTaskModal({ isOpen, taskTitle, onClose, onSubmit, organizationId, projectId }: AssignTaskModalProps) {
   const [assignee, setAssignee] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+
+  useEffect(() => {
+    const fetchTeamMembers = async () => {
+      if (!isOpen || !projectId || !organizationId) return;
+      try {
+        const membersData = await queryDocuments('team', [
+          where('organizationId', '==', organizationId),
+          where('projectId', '==', projectId)
+        ]);
+        setTeamMembers(membersData as TeamMember[]);
+      } catch (error) {
+        console.error('Error fetching team members:', error);
+      }
+    };
+    fetchTeamMembers();
+  }, [isOpen, projectId, organizationId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1029,17 +1052,22 @@ function AssignTaskModal({ isOpen, taskTitle, onClose, onSubmit }: AssignTaskMod
         <form onSubmit={handleSubmit} className="p-6">
           <div className="mb-4">
             <label htmlFor="assignee" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Assignee Email
+              Assign To
             </label>
-            <input
-              type="email"
+            <select
               id="assignee"
               value={assignee}
               onChange={(e) => setAssignee(e.target.value)}
-              placeholder="Enter user email"
               required
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-            />
+            >
+              <option value="">Select team member</option>
+              {teamMembers.map((member) => (
+                <option key={member.id} value={member.name}>
+                  {member.name}
+                </option>
+              ))}
+            </select>
           </div>
           
           <div className="flex justify-end space-x-3">
@@ -1064,7 +1092,6 @@ function AssignTaskModal({ isOpen, taskTitle, onClose, onSubmit }: AssignTaskMod
   );
 }
 
-// Edit Task Modal Component
 interface EditTaskModalProps {
   isOpen: boolean;
   currentTitle: string;
@@ -1132,7 +1159,6 @@ function EditTaskModal({ isOpen, currentTitle, onClose, onSubmit }: EditTaskModa
   );
 }
 
-// Notification Component
 interface NotificationProps {
   message: string;
   type: 'success' | 'error';
