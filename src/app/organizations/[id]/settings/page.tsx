@@ -6,8 +6,6 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/firebase/useAuth';
 import { getOrganization, hasOrganizationPermission, updateOrganization, getOrganizationMembers, updateOrganizationMembership, deleteOrganization } from '@/lib/firebase/organizationService';
 import { Organization, OrganizationMembership } from '@/lib/types/organization';
-import { getOrganization, hasOrganizationPermission } from '@/lib/firebase/organizationService';
-import { Organization } from '@/lib/types/organization';
 import { useFileUpload } from '@/lib/hooks/useFileUpload';
 import ImageCropper, { getCroppedImg } from '@/components/ui/ImageCropper';
 
@@ -21,7 +19,11 @@ export default function OrganizationSettings() {
   const [activeTab, setActiveTab] = useState('profile');
   const [formData, setFormData] = useState({
     name: '',
-    description: ''
+    description: '',
+    logoUrl: '',
+    website: '',
+    email: '',
+    notificationSettings: {}
   });
   const [members, setMembers] = useState<OrganizationMembership[]>([]);
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -57,7 +59,11 @@ export default function OrganizationSettings() {
         if (orgData) {
           setFormData({
             name: orgData.name || '',
-            description: orgData.description || ''
+            description: orgData.description || '',
+            logoUrl: orgData.logoUrl || '',
+            website: orgData.website || '',
+            email: orgData.email || '',
+            notificationSettings: orgData.notificationSettings || {}
           });
         }
 
@@ -664,9 +670,9 @@ export default function OrganizationSettings() {
                 </button>
               </div>
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Image Cropper Modal */}
       {showImageCropper && selectedImage && (

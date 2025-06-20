@@ -22,10 +22,9 @@ export default function OrganizationLayout({
   const [error, setError] = useState<string | null>(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [showImageUpload, setShowImageUpload] = useState(false);
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { uploading, uploadOrganizationLogo } = useFileUpload();
   const [projectName, setProjectName] = useState<string>('');
-  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const organizationId = Array.isArray(id) ? id[0] : id;
@@ -200,7 +199,7 @@ export default function OrganizationLayout({
                     </span>
                   </div>
                 )}
-
+                
                 {/* Upload overlay for users with access */}
                 {hasPermission && (
                   <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center cursor-pointer"
@@ -212,7 +211,7 @@ export default function OrganizationLayout({
                   </div>
                 )}
               </div>
-            )}
+            </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{organization.name}</h1>
               {organization.description && (
@@ -225,17 +224,6 @@ export default function OrganizationLayout({
                   size="sm"
                   variant="with-icon"
                 />
-
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{organization.name}</h1>
-                {organization.description && (
-                  <p className="text-gray-600 dark:text-gray-400 mt-1">{organization.description}</p>
-                )}
-                <div className="mt-2">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100">
-                    {organization.plan.charAt(0).toUpperCase() + organization.plan.slice(1)} Plan
-                  </span>
-                </div>
               </div>
             </div>
 

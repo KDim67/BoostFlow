@@ -68,7 +68,6 @@ export default function OrganizationMembers() {
       setIsInviting(true);
       setInviteError(null);
       
-      const result = await inviteTeamMember(organizationId, user.uid, inviteEmail, inviteRole);
       // Get the user's ID token
       const token = await user.getIdToken();
 

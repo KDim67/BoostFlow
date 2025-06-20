@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/firebase/useAuth';
 import { getOrganization, hasOrganizationPermission } from '@/lib/firebase/organizationService';
 import { createDocument } from '@/lib/firebase/firestoreService';
 import { Organization } from '@/lib/types/organization';
-import { EnhancedNotificationService } from '@/lib/services/enhancedNotificationService';
+
 
 export default function NewProjectPage() {
   const { id } = useParams();
