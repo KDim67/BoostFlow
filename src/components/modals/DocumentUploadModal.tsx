@@ -160,7 +160,7 @@ export default function DocumentUploadModal({
                       browse
                     </button>
                   </p>
-                  <p className="text-xs mt-1">Maximum file size: 50MB</p>
+                  <p className="text-xs mt-1">Maximum file size: 5MB</p>
                 </div>
               )}
             </div>

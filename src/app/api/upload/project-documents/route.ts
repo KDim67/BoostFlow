@@ -7,6 +7,15 @@ import { hasOrganizationPermission } from '@/lib/firebase/organizationService';
 
 const auth = getAuth(adminApp);
 
+// Configure API route to handle larger file uploads
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '5mb',
+    },
+  },
+};
+
 export async function POST(request: NextRequest) {
   try {
     // Initialize buckets if they don't exist
@@ -43,11 +52,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Insufficient permissions to upload files to this organization' }, { status: 403 });
     }
 
-    // Validate file size (50MB limit for documents)
-    const maxSize = 50 * 1024 * 1024; // 50MB
+    // Validate file size (5MB limit for documents)
+    const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: 'File too large. Maximum size is 50MB.' },
+        { error: 'File too large. Maximum size is 5MB.' },
         { status: 400 }
       );
     }
