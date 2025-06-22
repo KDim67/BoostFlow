@@ -194,17 +194,26 @@ export function extractFileNameFromUrl(url: string): string | null {
     
     // Handle both external and internal endpoint formats
     const urlObj = new URL(cleanUrl);
-    const pathParts = urlObj.pathname.split('/');
+    const pathParts = urlObj.pathname.split('/').filter(part => part !== '');
+    
+    let extractedPath: string | null = null;
     
     // URL format: http://endpoint/bucket/filename
     // or http://endpoint/minio/bucket/filename (with nginx proxy)
-    if (pathParts.includes('minio') && pathParts.length >= 4) {
-      // Handle nginx proxy format: /minio/bucket/filename
+    if (pathParts.includes('minio') && pathParts.length >= 3) {
+      // Handle nginx proxy format: /minio/bucket/organizationId/projectId/filename
       const minioIndex = pathParts.indexOf('minio');
-      return pathParts.slice(minioIndex + 2).join('/'); // Skip 'minio' and bucket
-    } else if (pathParts.length >= 3) {
-      // Handle direct format: /bucket/filename
-      return pathParts.slice(2).join('/'); // Join in case filename has slashes
+      // Skip 'minio' and bucket name, return the full path including organizationId/projectId/filename
+      extractedPath = pathParts.slice(minioIndex + 2).join('/');
+    } else if (pathParts.length >= 2) {
+      // Handle direct format: /bucket/organizationId/projectId/filename
+      // Skip bucket name, return the full path including organizationId/projectId/filename
+      extractedPath = pathParts.slice(1).join('/');
+    }
+    
+    // Decode URL-encoded characters (spaces, non-English characters, etc.)
+    if (extractedPath) {
+      return decodeURIComponent(extractedPath);
     }
     
     return null;
