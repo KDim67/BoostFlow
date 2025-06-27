@@ -36,7 +36,8 @@ const nextConfig: NextConfig = {
     '@protobufjs/inquire',
     'lodash.clonedeep',
     'jwks-rsa'
-  ]
+  ],
+
 };
 
 export default nextConfig;

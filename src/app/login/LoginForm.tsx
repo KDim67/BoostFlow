@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/firebase/useAuth';
 
@@ -9,9 +9,17 @@ export default function LoginForm() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   
   const { login, loginWithGoogle, error, clearError } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('verified') === 'true') {
+      setSuccessMessage('Email verified successfully! You can now sign in.');
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,7 +28,9 @@ export default function LoginForm() {
     clearError();
     
     try {
-      await login(email, password);
+      const userCredential = await login(email, password);
+      
+      // Proceed to organizations (email verification is now optional and can be done from settings)
       router.push('/organizations');
     } catch (error: any) {
       setErrorMessage(error.message || 'Failed to log in');
@@ -31,6 +41,12 @@ export default function LoginForm() {
 
   return (
     <form className="space-y-6" onSubmit={handleSubmit}>
+      {successMessage && (
+        <div className="p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg">
+          {successMessage}
+        </div>
+      )}
+      
       {errorMessage && (
         <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">
           {errorMessage}

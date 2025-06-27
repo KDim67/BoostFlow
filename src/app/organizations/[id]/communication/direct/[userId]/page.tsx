@@ -23,6 +23,7 @@ export default function DirectMessagePage() {
   const otherUserId = Array.isArray(userId) ? userId[0] : userId;
   
   const [otherUser, setOtherUser] = useState<any>(null);
+  const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +41,25 @@ export default function DirectMessagePage() {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     setShowScrollToBottom(false);
+  };
+
+  const getInitials = (user: any) => {
+    const displayName = user?.displayName;
+    const email = user?.email;
+    
+    if (displayName) {
+      const names = displayName.trim().split(' ');
+      if (names.length >= 2) {
+        return (names[0][0] + names[names.length - 1][0]).toUpperCase();
+      }
+      return displayName[0].toUpperCase();
+    }
+    
+    if (email) {
+      return email[0].toUpperCase();
+    }
+    
+    return 'U';
   };
 
   const handleScroll = () => {
@@ -74,6 +94,10 @@ export default function DirectMessagePage() {
           return;
         }
         setOtherUser(userProfile);
+        
+        // Fetch current user's profile
+        const currentProfile = await getUserProfile(user.uid);
+        setCurrentUserProfile(currentProfile);
         
         const conversationId = [user.uid, otherUserId].sort().join('_');
         
@@ -256,16 +280,22 @@ export default function DirectMessagePage() {
             
             <div className="flex items-center space-x-3">
               <div className="relative">
-                {otherUser.photoURL ? (
+                {otherUser.profilePicture ? (
+                  <img 
+                    src={otherUser.profilePicture} 
+                    alt={otherUser.displayName || otherUser.email} 
+                    className="w-12 h-12 rounded-full ring-2 ring-blue-500/20 object-cover"
+                  />
+                ) : otherUser.photoURL ? (
                   <img 
                     src={otherUser.photoURL} 
                     alt={otherUser.displayName || otherUser.email} 
-                    className="w-12 h-12 rounded-full ring-2 ring-blue-500/20"
+                    className="w-12 h-12 rounded-full ring-2 ring-blue-500/20 object-cover"
                   />
                 ) : (
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center ring-2 ring-blue-500/20">
                     <span className="text-white font-semibold text-lg">
-                      {(otherUser.displayName || otherUser.email || 'U').substring(0, 2).toUpperCase()}
+                      {getInitials(otherUser)}
                     </span>
                   </div>
                 )}
@@ -317,7 +347,7 @@ export default function DirectMessagePage() {
           messages.map((message, index) => {
             const showAvatar = index === 0 || messages[index - 1].author !== message.author;
             const isCurrentUser = message.author === user?.uid;
-            const sender = isCurrentUser ? user : otherUser;
+            const sender = isCurrentUser ? currentUserProfile : otherUser;
             const showTimestamp = showAvatar || (index > 0 && 
               new Date(message.createdAt).getTime() - new Date(messages[index - 1].createdAt).getTime() > 300000); // 5 minutes
             
@@ -327,16 +357,22 @@ export default function DirectMessagePage() {
               } hover:bg-gray-50/50 dark:hover:bg-gray-800/50 rounded-full p-3 -mx-3 transition-all duration-200 hover:scale-[1.01]`}>
                 {showAvatar ? (
                   <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0">
-                    {sender?.photoURL ? (
+                    {sender?.profilePicture ? (
+                      <img 
+                        src={sender.profilePicture} 
+                        alt={sender.displayName || sender.email} 
+                        className="w-10 h-10 rounded-full ring-2 ring-white dark:ring-gray-800 shadow-sm object-cover"
+                      />
+                    ) : sender?.photoURL ? (
                       <img 
                         src={sender.photoURL} 
                         alt={sender.displayName || sender.email} 
-                        className="w-10 h-10 rounded-full ring-2 ring-white dark:ring-gray-800 shadow-sm"
+                        className="w-10 h-10 rounded-full ring-2 ring-white dark:ring-gray-800 shadow-sm object-cover"
                       />
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
                         <span className="text-white font-semibold text-sm">
-                          {(sender?.displayName || sender?.email || 'U').substring(0, 2).toUpperCase()}
+                          {getInitials(sender)}
                         </span>
                       </div>
                     )}

@@ -7,6 +7,7 @@ import {
   onAuthStateChanged,
   signInWithPopup,
   GoogleAuthProvider,
+  sendEmailVerification,
   User,
   UserCredential
 } from 'firebase/auth';
@@ -59,7 +60,12 @@ export const logoutUser = async (): Promise<void> => {
 
 export const resetPassword = async (email: string): Promise<void> => {
   try {
-    return await sendPasswordResetEmail(auth, email);
+    const actionCodeSettings = {
+      url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://boostflow.me'}/auth-handler/auth/action`,
+      handleCodeInApp: true,
+    };
+    
+    return await sendPasswordResetEmail(auth, email, actionCodeSettings);
   } catch (error) {
     console.error('Error resetting password:', error);
     throw error;
@@ -75,6 +81,20 @@ export const signInWithGoogle = async (): Promise<UserCredential> => {
     return await signInWithPopup(auth, googleProvider);
   } catch (error) {
     console.error('Error signing in with Google:', error);
+    throw error;
+  }
+};
+
+export const sendVerificationEmail = async (user: User): Promise<void> => {
+  try {
+    const actionCodeSettings = {
+      url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://boostflow.me'}/auth-handler/auth/action`,
+      handleCodeInApp: true,
+    };
+    
+    await sendEmailVerification(user, actionCodeSettings);
+  } catch (error) {
+    console.error('Error sending verification email:', error);
     throw error;
   }
 };

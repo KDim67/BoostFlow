@@ -9,7 +9,8 @@ import {
   resetPassword,
   getCurrentUser,
   subscribeToAuthChanges,
-  signInWithGoogle
+  signInWithGoogle,
+  sendVerificationEmail
 } from './authService';
 import { syncUserProfile } from './userProfileService';
 
@@ -22,6 +23,7 @@ interface AuthContextType {
   loginWithGoogle: () => Promise<UserCredential>;
   logout: () => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
+  sendEmailVerification: (user: User) => Promise<void>;
   clearError: () => void;
 }
 
@@ -124,6 +126,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const sendEmailVerificationWrapper = async (user: User) => {
+    try {
+      setError(null);
+      await sendVerificationEmail(user);
+    } catch (err: any) {
+      setError(err.message || 'Failed to send verification email');
+      throw err;
+    }
+  };
+
   const clearError = () => {
     setError(null);
   };
@@ -137,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loginWithGoogle,
     logout,
     forgotPassword,
+    sendEmailVerification: sendEmailVerificationWrapper,
     clearError
   };
 

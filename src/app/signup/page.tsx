@@ -18,8 +18,10 @@ export default function SignupPage() {
       setIsGoogleLoading(true);
       setGoogleError('');
       clearError();
-      await loginWithGoogle();
-      router.push(`${window.location.origin}/organizations`);
+      const userCredential = await loginWithGoogle();
+      
+      // Google users are automatically verified, proceed directly to organizations
+      router.push('/organizations');
     } catch (error: any) {
       setGoogleError(error.message || 'Failed to sign up with Google');
     } finally {

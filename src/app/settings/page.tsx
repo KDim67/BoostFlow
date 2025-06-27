@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/firebase/useAuth';
+import { sendVerificationEmail } from '@/lib/firebase/authService';
 import { getUserProfile, updateUserProfile, UserProfile } from '@/lib/firebase/userProfileService';
-import { updatePassword, updateProfile } from 'firebase/auth';
+import { updatePassword, updateProfile, updateEmail, verifyBeforeUpdateEmail, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import PersonalIntegrations from '@/components/dashboard/PersonalIntegrations';
 import { useFileUpload } from '@/lib/hooks/useFileUpload';
@@ -17,6 +18,7 @@ interface SettingsFormData {
   currentPassword: string;
   newPassword: string;
   confirmPassword: string;
+  newEmail: string;
   websiteNotifications: boolean;
   profilePicture: string;
 }
@@ -38,10 +40,14 @@ export default function SettingsPage() {
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
+    newEmail: '',
     websiteNotifications: true,
     profilePicture: ''
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [sendingVerification, setSendingVerification] = useState(false);
+  const [changingEmail, setChangingEmail] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
   const [showImageCropper, setShowImageCropper] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
@@ -214,7 +220,7 @@ export default function SettingsPage() {
       console.error('Error updating account:', error);
       setMessage({ type: 'error', text: 'Failed to update account information' });
     } finally {
-      setSaving(false);
+      setPasswordLoading(false);
     }
   };
 
@@ -232,7 +238,7 @@ export default function SettingsPage() {
       return;
     }
 
-    setSaving(true);
+    setPasswordLoading(true);
     setMessage(null);
 
     try {
@@ -252,7 +258,7 @@ export default function SettingsPage() {
         setMessage({ type: 'error', text: 'Failed to update password' });
       }
     } finally {
-      setSaving(false);
+      setPasswordLoading(false);
     }
   };
 
@@ -277,6 +283,76 @@ export default function SettingsPage() {
       setMessage({ type: 'error', text: 'Failed to update notification preferences' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSendVerificationEmail = async () => {
+    if (!user) return;
+
+    setSendingVerification(true);
+    setMessage(null);
+
+    try {
+      await sendVerificationEmail(user);
+      setMessage({ type: 'success', text: 'Verification email sent! Please check your inbox.' });
+    } catch (error: any) {
+      console.error('Error sending verification email:', error);
+      setMessage({ type: 'error', text: 'Failed to send verification email. Please try again.' });
+    } finally {
+      setSendingVerification(false);
+    }
+  };
+
+  const handleEmailChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !formData.newEmail || !formData.currentPassword) {
+      setMessage({ type: 'error', text: 'Please fill in all required fields' });
+      return;
+    }
+
+    setChangingEmail(true);
+    setMessage(null);
+
+    try {
+      // Reauthenticate user before changing email
+      const credential = EmailAuthProvider.credential(user.email!, formData.currentPassword);
+      await reauthenticateWithCredential(user, credential);
+
+      // Use verifyBeforeUpdateEmail to send verification email first
+      const actionCodeSettings = {
+        url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://boostflow.me'}/auth-handler/auth/action`,
+        handleCodeInApp: true,
+      };
+      
+      await verifyBeforeUpdateEmail(user, formData.newEmail, actionCodeSettings);
+
+      setFormData(prev => ({
+        ...prev,
+        newEmail: '',
+        currentPassword: ''
+      }));
+
+      setMessage({ 
+        type: 'success', 
+        text: `Verification email sent to ${formData.newEmail}! Please check your inbox and click the verification link to complete the email change. Your email will be updated automatically after verification.` 
+      });
+    } catch (error: any) {
+      console.error('Error updating email:', error);
+      if (error.code === 'auth/wrong-password') {
+        setMessage({ type: 'error', text: 'Current password is incorrect' });
+      } else if (error.code === 'auth/email-already-in-use') {
+        setMessage({ type: 'error', text: 'This email is already in use by another account' });
+      } else if (error.code === 'auth/invalid-email') {
+        setMessage({ type: 'error', text: 'Please enter a valid email address' });
+      } else if (error.code === 'auth/requires-recent-login') {
+        setMessage({ type: 'error', text: 'Please log out and log back in before changing your email' });
+      } else if (error.code === 'auth/too-many-requests') {
+        setMessage({ type: 'error', text: 'Too many failed attempts. Please try again later.' });
+      } else {
+        setMessage({ type: 'error', text: `Failed to send verification email: ${error.message || 'Please try again.'}` });
+      }
+    } finally {
+      setChangingEmail(false);
     }
   };
 
@@ -457,7 +533,7 @@ export default function SettingsPage() {
                         className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 bg-gray-50 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
                       />
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Email cannot be changed
+                        To change your email address, go to the Security tab
                       </p>
                     </div>
                   </div>
@@ -476,53 +552,145 @@ export default function SettingsPage() {
 
             {/* Security Tab */}
             {activeTab === 'security' && (
-              <form onSubmit={handlePasswordChange} className="space-y-6">
+              <div className="space-y-8">
+                {/* Email Verification Section */}
                 <div>
                   <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                    Change Password
+                    Email Verification
                   </h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        New Password
-                      </label>
-                      <input
-                        type="password"
-                        value={formData.newPassword}
-                        onChange={(e) => handleInputChange('newPassword', e.target.value)}
-                        className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Enter new password"
-                      />
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          Current Email: {user?.email}
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                          Status: {user?.emailVerified ? (
+                            <span className="text-green-600 dark:text-green-400 font-medium">✓ Verified</span>
+                          ) : (
+                            <span className="text-red-600 dark:text-red-400 font-medium">⚠ Not Verified</span>
+                          )}
+                        </p>
+                      </div>
+                      {!user?.emailVerified && (
+                        <button
+                          type="button"
+                          onClick={handleSendVerificationEmail}
+                          disabled={sendingVerification}
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {sendingVerification ? 'Sending...' : 'Send Verification Email'}
+                        </button>
+                      )}
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Confirm New Password
-                      </label>
-                      <input
-                        type="password"
-                        value={formData.confirmPassword}
-                        onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                        className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Confirm new password"
-                      />
-                    </div>
-                  </div>
-                  <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
-                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                      <strong>Note:</strong> If you haven't logged in recently, you may need to log out and log back in before changing your password.
-                    </p>
+                    {!user?.emailVerified && (
+                      <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                        <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                          <strong>Important:</strong> Please verify your email address to ensure account security and receive important notifications.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={saving || !formData.newPassword || !formData.confirmPassword}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {saving ? 'Updating...' : 'Update Password'}
-                  </button>
-                </div>
-              </form>
+
+                {/* Change Email Section */}
+                <form onSubmit={handleEmailChange} className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                      Change Email Address
+                    </h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          New Email Address
+                        </label>
+                        <input
+                          type="email"
+                          value={formData.newEmail}
+                          onChange={(e) => handleInputChange('newEmail', e.target.value)}
+                          className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Enter new email address"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Current Password
+                        </label>
+                        <input
+                          type="password"
+                          value={formData.currentPassword}
+                          onChange={(e) => handleInputChange('currentPassword', e.target.value)}
+                          className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Enter current password to confirm"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                      <p className="text-sm text-blue-800 dark:text-blue-200">
+                        <strong>Note:</strong> After changing your email, you'll need to verify the new address before you can use it to sign in.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={changingEmail || !formData.newEmail || !formData.currentPassword}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {changingEmail ? 'Updating...' : 'Update Email'}
+                    </button>
+                  </div>
+                </form>
+
+                {/* Change Password Section */}
+                <form onSubmit={handlePasswordChange} className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                      Change Password
+                    </h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          New Password
+                        </label>
+                        <input
+                          type="password"
+                          value={formData.newPassword}
+                          onChange={(e) => handleInputChange('newPassword', e.target.value)}
+                          className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Enter new password"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Confirm New Password
+                        </label>
+                        <input
+                          type="password"
+                          value={formData.confirmPassword}
+                          onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+                          className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm py-2 px-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Confirm new password"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                      <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                        <strong>Note:</strong> If you haven't logged in recently, you may need to log out and log back in before changing your password.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={passwordLoading || !formData.newPassword || !formData.confirmPassword}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {passwordLoading ? 'Updating...' : 'Update Password'}
+                    </button>
+                  </div>
+                </form>
+              </div>
             )}
 
             {/* Notifications Tab */}

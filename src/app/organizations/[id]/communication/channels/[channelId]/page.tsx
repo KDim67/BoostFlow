@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/firebase/useAuth';
 import { hasOrganizationPermission, getOrganizationMembers } from '@/lib/firebase/organizationService';
+import { getUserProfile } from '@/lib/firebase/userProfileService';
 import { 
   getChannel,
   getChannelMessages,
@@ -28,6 +29,8 @@ export default function ChannelPage() {
   const [channel, setChannel] = useState<Channel | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [members, setMembers] = useState<any[]>([]);
+  const [userProfiles, setUserProfiles] = useState<{[key: string]: any}>({});
+  const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
@@ -58,6 +61,25 @@ export default function ChannelPage() {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     setShowScrollToBottom(false);
+  };
+
+  const getInitials = (user: any) => {
+    const displayName = user?.displayName;
+    const email = user?.email;
+    
+    if (displayName) {
+      const names = displayName.trim().split(' ');
+      if (names.length >= 2) {
+        return (names[0][0] + names[names.length - 1][0]).toUpperCase();
+      }
+      return displayName[0].toUpperCase();
+    }
+    
+    if (email) {
+      return email[0].toUpperCase();
+    }
+    
+    return 'U';
   };
   
   const handleScroll = () => {
@@ -122,6 +144,26 @@ export default function ChannelPage() {
         
         setMessages(messagesData);
         setMembers(membersData);
+        
+        // Fetch user profiles for message authors
+        const uniqueAuthorIds = [...new Set(messagesData.map(msg => msg.author))];
+        const profilePromises = uniqueAuthorIds.map(async (authorId) => {
+          try {
+            const profile = await getUserProfile(authorId);
+            return { [authorId]: profile };
+          } catch (error) {
+            console.error(`Error fetching profile for user ${authorId}:`, error);
+            return { [authorId]: null };
+          }
+        });
+        
+        const profileResults = await Promise.all(profilePromises);
+        const profilesMap = profileResults.reduce((acc, curr) => ({ ...acc, ...curr }), {});
+        setUserProfiles(profilesMap);
+        
+        // Fetch current user's profile
+        const currentProfile = await getUserProfile(user.uid);
+        setCurrentUserProfile(currentProfile);
         
         if (channelData.type === 'private' && channelData.createdBy === user.uid) {
           const orgMembers = await getOrganizationMembers(organizationId);
@@ -498,17 +540,30 @@ export default function ChannelPage() {
             const showTimestamp = showAvatar || (index > 0 && 
               new Date(message.createdAt).getTime() - new Date(messages[index - 1].createdAt).getTime() > 300000); // 5 minutes
             
+            const authorProfile = userProfiles[message.author];
+            const displayName = isCurrentUser 
+              ? (user?.displayName || user?.email || 'You')
+              : (authorProfile?.displayName || message.authorName || 'Unknown User');
+            
             return (
               <div key={message.id} className={`flex items-start group ${showAvatar ? 'mt-6' : 'mt-1'} ${
                 isCurrentUser ? 'flex-row-reverse space-x-reverse space-x-3' : 'space-x-3'
               } hover:bg-gray-50/50 dark:hover:bg-gray-800/50 rounded-full p-3 -mx-3 transition-all duration-200 hover:scale-[1.01]`}>
                 {showAvatar ? (
                   <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                      <span className="text-white font-semibold text-sm">
-                        {(message.authorName || 'U').substring(0, 2).toUpperCase()}
-                      </span>
-                    </div>
+                    {(isCurrentUser && (currentUserProfile?.profilePicture || currentUserProfile?.photoURL)) || (!isCurrentUser && (authorProfile?.profilePicture || authorProfile?.photoURL)) ? (
+                      <img 
+                        src={isCurrentUser ? (currentUserProfile?.profilePicture || currentUserProfile?.photoURL) : (authorProfile?.profilePicture || authorProfile?.photoURL)} 
+                        alt={displayName} 
+                        className="w-10 h-10 rounded-full ring-2 ring-white dark:ring-gray-800 shadow-sm object-cover"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center ring-2 ring-white dark:ring-gray-800">
+                        <span className="text-white font-semibold text-sm">
+                          {getInitials(isCurrentUser ? currentUserProfile : authorProfile)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="w-10 h-10 flex-shrink-0" />
@@ -520,7 +575,7 @@ export default function ChannelPage() {
                       isCurrentUser ? 'flex-row-reverse space-x-reverse' : ''
                     }`}>
                       <span className="font-semibold text-gray-900 dark:text-white">
-                        {isCurrentUser ? 'You' : (message.authorName || 'Unknown User')}
+                        {isCurrentUser ? 'You' : displayName}
                       </span>
                       <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">
                         {formatMessageTime(new Date(message.createdAt))}
@@ -670,19 +725,27 @@ export default function ChannelPage() {
                   {filteredOrganizationMembers.map((member) => (
                     <div key={member.userId} className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors">
                       <div className="flex items-center space-x-3">
-                        {member.userProfile?.photoURL ? (
-                          <img 
-                            src={member.userProfile.photoURL} 
-                            alt={member.userProfile.displayName || member.userProfile.email} 
-                            className="w-10 h-10 rounded-full"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                            <span className="text-white font-semibold text-sm">
-                              {(member.userProfile?.displayName || member.userProfile?.email || 'U').substring(0, 2).toUpperCase()}
-                            </span>
-                          </div>
-                        )}
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0">
+                          {member.userProfile?.profilePicture ? (
+                            <img 
+                              src={member.userProfile.profilePicture} 
+                              alt={member.userProfile.displayName || member.userProfile.email} 
+                              className="w-10 h-10 rounded-full ring-2 ring-white dark:ring-gray-800 shadow-sm object-cover"
+                            />
+                          ) : member.userProfile?.photoURL ? (
+                            <img 
+                              src={member.userProfile.photoURL} 
+                              alt={member.userProfile.displayName || member.userProfile.email} 
+                              className="w-10 h-10 rounded-full ring-2 ring-white dark:ring-gray-800 shadow-sm object-cover"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                              <span className="text-white font-semibold text-sm">
+                                {getInitials(member.userProfile)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                         <div>
                           <p className="font-medium text-gray-900 dark:text-white">
                             {member.userProfile?.displayName || member.userProfile?.email}

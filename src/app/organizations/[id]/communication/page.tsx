@@ -32,6 +32,26 @@ export default function CommunicationPage() {
   const [newChannelType, setNewChannelType] = useState<'public' | 'private'>('public');
   const [isCreating, setIsCreating] = useState(false);
 
+  const getInitials = (profile: any) => {
+    const displayName = profile?.displayName || 
+      `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim();
+    const email = profile?.email;
+    
+    if (displayName) {
+      const names = displayName.trim().split(' ');
+      if (names.length >= 2) {
+        return (names[0][0] + names[names.length - 1][0]).toUpperCase();
+      }
+      return displayName[0].toUpperCase();
+    }
+    
+    if (email) {
+      return email[0].toUpperCase();
+    }
+    
+    return 'U';
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       if (!user || !organizationId) return;
@@ -378,7 +398,13 @@ export default function CommunicationPage() {
                           style={{ animationDelay: `${index * 50}ms` }}
                         >
                           <div className="relative">
-                            {profile.photoURL ? (
+                            {profile.profilePicture ? (
+                              <img
+                                src={profile.profilePicture}
+                                alt={displayName}
+                                className="w-10 h-10 rounded-full object-cover ring-2 ring-white dark:ring-gray-800 group-hover:ring-purple-200 dark:group-hover:ring-purple-700 transition-all duration-200"
+                              />
+                            ) : profile.photoURL ? (
                               <img
                                 src={profile.photoURL}
                                 alt={displayName}
@@ -386,7 +412,7 @@ export default function CommunicationPage() {
                               />
                             ) : (
                               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-bold ring-2 ring-white dark:ring-gray-800 group-hover:ring-purple-200 dark:group-hover:ring-purple-700 transition-all duration-200">
-                                {displayName.charAt(0).toUpperCase()}
+                                {getInitials(profile)}
                               </div>
                             )}
                             <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-gray-800 ${

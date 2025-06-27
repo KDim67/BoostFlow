@@ -17,7 +17,7 @@ export default function SignupForm() {
   const [errorMessage, setErrorMessage] = useState('');
   const [passwordError, setPasswordError] = useState('');
   
-  const { signup, loginWithGoogle, error, clearError } = useAuth();
+  const { signup, loginWithGoogle, sendEmailVerification, error, clearError } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -48,21 +48,20 @@ export default function SignupForm() {
     
     try {
       const displayName = `${firstName} ${lastName}`.trim();
-      await signup(email, password, displayName);
+      const userCredential = await signup(email, password, displayName);
       
-      const currentUser = auth.currentUser;
-      
-      if (!currentUser) {
-        throw new Error('User creation succeeded but user is not logged in');
+      if (!userCredential.user) {
+        throw new Error('User creation succeeded but user is not available');
       }
       
-      await syncUserProfile(currentUser, {
+      await syncUserProfile(userCredential.user, {
         firstName,
         lastName,
         createdAt: new Date()
       } as any);
       
-      router.push(`${window.location.origin}/organizations`);
+      // Redirect to organizations page (email verification moved to settings)
+      router.push('/organizations');
     } catch (error: any) {
       setErrorMessage(error.message || 'Failed to create account');
     } finally {

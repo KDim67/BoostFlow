@@ -10,6 +10,7 @@ const logger = createLogger('UserProfileService');
 export interface UserProfile {
   uid: string;
   email: string;
+  emailVerified?: boolean;
   displayName?: string;
   photoURL?: string;
   profilePicture?: string;

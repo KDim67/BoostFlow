@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/firebase/useAuth';
 
@@ -19,7 +19,9 @@ export default function LoginPage() {
       setIsGoogleLoading(true);
       setGoogleError('');
       clearError();
-      await loginWithGoogle();
+      const userCredential = await loginWithGoogle();
+      
+      // Google users are automatically verified, so proceed directly
       router.push('/organizations');
     } catch (error: any) {
       setGoogleError(error.message || 'Failed to sign in with Google');
@@ -55,7 +57,9 @@ export default function LoginPage() {
                 </Link>
               </div>
               
-              <LoginForm />
+              <Suspense fallback={<div className="text-center">Loading...</div>}>
+                <LoginForm />
+              </Suspense>
               
               {googleError && (
                 <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">
