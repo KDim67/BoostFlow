@@ -148,7 +148,7 @@ export default function PlatformAdminLayout({
                   {user?.displayName || user?.email?.split('@')[0]}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {isSuperAdmin ? 'Super Administrator' : 'Platform Administrator'}
+                  {isSuperAdmin ? 'Super Administrator' : 'Platform Moderator'}
                 </p>
               </div>
             </div>
@@ -199,27 +199,29 @@ export default function PlatformAdminLayout({
               )}
             </Link>
 
-            {/* Organizations Link */}
-            <Link 
-              href="/platform-admin/organizations" 
-              className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-md 
-                        ${activeTab === 'organizations' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'} 
-                        group transition-colors duration-150 ease-in-out`}
-              aria-current={activeTab === 'organizations' ? 'page' : undefined}
-            >
-              <span className="flex-shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" 
-                  className={`h-5 w-5 ${activeTab === 'organizations' ? '' : 'text-gray-500 dark:text-gray-400'} 
-                              group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-150 ease-in-out`} 
-                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </span>
-              {(!isSidebarCollapsed || isMobileView) && <span className="ml-2">Organizations</span>}
-              {isSidebarCollapsed && !isMobileView && (
-                <span className="sr-only">Organizations</span>
-              )}
-            </Link>
+            {/* Organizations Link - Only visible to Super Admins */}
+            {isSuperAdmin && (
+              <Link 
+                href="/platform-admin/organizations" 
+                className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-md 
+                          ${activeTab === 'organizations' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'} 
+                          group transition-colors duration-150 ease-in-out`}
+                aria-current={activeTab === 'organizations' ? 'page' : undefined}
+              >
+                <span className="flex-shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" 
+                    className={`h-5 w-5 ${activeTab === 'organizations' ? '' : 'text-gray-500 dark:text-gray-400'} 
+                                group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-150 ease-in-out`} 
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </span>
+                {(!isSidebarCollapsed || isMobileView) && <span className="ml-2">Organizations</span>}
+                {isSidebarCollapsed && !isMobileView && (
+                  <span className="sr-only">Organizations</span>
+                )}
+              </Link>
+            )}
 
 
           </nav>

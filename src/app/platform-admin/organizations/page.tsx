@@ -2,14 +2,19 @@
 
 import React, { useEffect, useState } from 'react';
 import { Metadata } from 'next';
+import { useRouter } from 'next/navigation';
 import { getAllOrganizations, updateOrganization } from '@/lib/firebase/organizationService';
 import { Organization, SubscriptionPlan } from '@/lib/types/organization';
 import { timestampToDate } from '@/lib/firebase/firestoreService';
 import { auth } from '@/lib/firebase/config';
+import { usePlatformAuth } from '@/lib/firebase/usePlatformAuth';
 
 import Badge from '@/components/Badge';
 
 export default function OrganizationManagementPage() {
+  const router = useRouter();
+  const { isSuperAdmin, isLoading: authLoading } = usePlatformAuth();
+  
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [filteredOrganizations, setFilteredOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -27,7 +32,11 @@ export default function OrganizationManagementPage() {
   const [isManageModalOpen, setIsManageModalOpen] = useState<boolean>(false);
   const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
   
-
+  useEffect(() => {
+    if (!authLoading && !isSuperAdmin) {
+      router.push('/platform-admin');
+    }
+  }, [authLoading, isSuperAdmin, router]);
 
   useEffect(() => {
     const fetchOrganizations = async () => {
@@ -145,7 +154,6 @@ export default function OrganizationManagementPage() {
     if (!organizationToDelete) return;
     
     try {
-      // Get the user's ID token for authentication
       const user = auth.currentUser;
       if (!user) {
         throw new Error('User not authenticated');
@@ -153,7 +161,6 @@ export default function OrganizationManagementPage() {
       
       const token = await user.getIdToken();
       
-      // Call the delete API endpoint
       const response = await fetch('/api/organizations/delete', {
         method: 'DELETE',
         headers: {
@@ -202,7 +209,20 @@ export default function OrganizationManagementPage() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
+  if (!isSuperAdmin) {
+    return null;
+  }
 
   return (
     <div className="space-y-6">

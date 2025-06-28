@@ -5,7 +5,7 @@ import { getAllUserProfiles, UserProfile, updateUserProfile, deleteUserProfile }
 import { timestampToDate } from '@/lib/firebase/firestoreService';
 import { where, orderBy, QueryConstraint } from 'firebase/firestore';
 import { queryDocuments } from '@/lib/firebase/firestoreService';
-import { PlatformRole } from '@/lib/firebase/usePlatformAuth';
+import { PlatformRole, usePlatformAuth } from '@/lib/firebase/usePlatformAuth';
 import { getUserOrganizations } from '@/lib/firebase/organizationService';
 import { OrganizationWithDetails } from '@/lib/types/organization';
 
@@ -43,6 +43,8 @@ export default function UserManagementPage() {
   const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
 
   const [allOrganizations, setAllOrganizations] = useState<string[]>([]);
+
+  const { isSuperAdmin } = usePlatformAuth();
 
 
 
@@ -475,7 +477,7 @@ export default function UserManagementPage() {
                         </button>
                         <button 
                           onClick={() => handleSuspendUser(user)}
-                          className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 mr-3"
+                          className="text-yellow-600 dark:text-yellow-400 hover:text-yellow-900 dark:hover:text-yellow-300 mr-3"
                         >
                           {user.suspended ? 'Unsuspend' : 'Suspend'}
                         </button>
@@ -600,14 +602,20 @@ export default function UserManagementPage() {
               <div>
                 <label className="block text-sm font-medium mb-1">Role</label>
                 <select 
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200"
+                  className={`w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 ${!isSuperAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
                   value={editedRole}
                   onChange={(e) => setEditedRole(e.target.value)}
+                  disabled={!isSuperAdmin}
                 >
                   <option value="user">User</option>
                   <option value="platform_moderator">Platform Moderator</option>
                   <option value="super_admin">Super Admin</option>
                 </select>
+                {!isSuperAdmin && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Only super admins can modify user roles
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex justify-end mt-6 space-x-3">

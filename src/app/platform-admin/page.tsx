@@ -29,7 +29,7 @@ export default function PlatformAdminDashboard() {
   const [announcementTitle, setAnnouncementTitle] = useState('');
   const [announcementMessage, setAnnouncementMessage] = useState('');
   const [isSendingAnnouncement, setIsSendingAnnouncement] = useState(false);
-  const { user, isPlatformAdmin } = usePlatformAuth();
+  const { user, isPlatformAdmin, isSuperAdmin } = usePlatformAuth();
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -115,19 +115,21 @@ export default function PlatformAdminDashboard() {
     <div className="space-y-6">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Platform Admin Dashboard</h1>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Platform Moderator Dashboard</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Monitor system health and platform metrics</p>
         </div>
         <div className="flex space-x-3">
-          <button 
-            onClick={() => setShowAnnouncementModal(true)}
-            className="inline-flex items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
-            </svg>
-            Send System Announcement
-          </button>
+          {isSuperAdmin && (
+            <button 
+              onClick={() => setShowAnnouncementModal(true)}
+              className="inline-flex items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+              </svg>
+              Send System Announcement
+            </button>
+          )}
           <button 
             onClick={handleRefreshData}
             disabled={isLoading}
