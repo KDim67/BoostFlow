@@ -21,8 +21,6 @@
     "dotenv": "^16.4.5",
     "firebase": "^11.5.0",
     "firebase-admin": "^13.4.0",
-    "framer-motion": "^12.16.0",
-    "js-cookie": "^3.0.5",
     "lucide-react": "^0.511.0",
     "minio": "^8.0.5",
     "next": "15.2.3",
@@ -34,7 +32,6 @@
     "react-dom": "^19.0.0",
     "react-easy-crop": "^5.0.8",
     "react-firebase-hooks": "^5.1.1",
-    "recharts": "^2.15.3",
     "tailwind-merge": "^3.3.0"
   },
   "devDependencies": {
