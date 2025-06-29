@@ -8,29 +8,51 @@ import { getOrganization, hasOrganizationPermission } from '@/lib/firebase/organ
 import { getDocument } from '@/lib/firebase/firestoreService';
 import { Organization } from '@/lib/types/organization';
 
+/**
+ * ProjectLayout Component
+ * 
+ * A layout wrapper for project pages that handles:
+ * - User authentication and authorization
+ * - Organization and project data fetching
+ * - Permission validation (minimum 'viewer' role required)
+ * - Loading states and error handling
+ * 
+ * This component ensures users can only access projects within organizations
+ * they have permission to view.
+ */
 export default function ProjectLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Extract dynamic route parameters from URL
   const { id, projectId } = useParams();
+  
+  // Component state management
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [projectName, setProjectName] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Authentication and navigation hooks
   const { user } = useAuth();
   const router = useRouter();
+  
+  // Normalize route parameters (handle both string and array cases)
   const organizationId = Array.isArray(id) ? id[0] : id;
   const projectIdString = Array.isArray(projectId) ? projectId[0] : projectId;
 
+  // Effect to fetch and validate organization/project data on component mount
   useEffect(() => {
     const fetchData = async () => {
+      // Early return if required data is missing
       if (!user || !organizationId || !projectIdString) return;
       
       try {
         setIsLoading(true);
         setError(null);
         
+        // Check if user has minimum 'viewer' permission for the organization
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'viewer');
         
         if (!permission) {
@@ -39,9 +61,11 @@ export default function ProjectLayout({
           return;
         }
         
+        // Fetch organization data after permission validation
         const orgData = await getOrganization(organizationId);
         setOrganization(orgData);
         
+        // Fetch project details for display purposes
         const projectData = await getDocument('projects', projectIdString);
         if (projectData) {
           setProjectName(projectData.name);
@@ -55,7 +79,7 @@ export default function ProjectLayout({
     };
 
     fetchData();
-  }, [user, organizationId, projectIdString]);
+  }, [user, organizationId, projectIdString]); // Re-run when dependencies change
 
   if (isLoading) {
     return (
@@ -64,6 +88,7 @@ export default function ProjectLayout({
       </div>
     );
   }
+
 
   if (error || !organization) {
     return (

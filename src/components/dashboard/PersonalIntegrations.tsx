@@ -23,6 +23,10 @@ interface PersonalIntegrationsProps {
   currentUser: string;
 }
 
+/**
+ * PersonalIntegrations component manages user-specific third-party integrations
+ * Handles OAuth connections, integration management, and synchronization
+ */
 export default function PersonalIntegrations({
   currentUser
 }: PersonalIntegrationsProps) {
@@ -36,17 +40,20 @@ export default function PersonalIntegrations({
   const [activeTab, setActiveTab] = useState('list');
   const [isConnecting, setIsConnecting] = useState(false);
 
+  // Load initial data when component mounts or currentUser changes
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
         
+        // Fetch providers and integrations in parallel for better performance
         const [providers, allIntegrations] = await Promise.all([
           getAvailableProviders(),
           getAllIntegrations()
         ]);
         
         setAvailableProviders(providers);
+        // Filter to only show personal integrations (not organization-level)
         const personalIntegrations = allIntegrations.filter(int => 
           int.config?.userId === currentUser && !int.config?.organizationId
         );
@@ -64,6 +71,10 @@ export default function PersonalIntegrations({
     loadData();
   }, [currentUser]);
 
+  /**
+   * Initiates OAuth connection flow for a third-party provider
+   * Stores necessary state in localStorage and redirects to provider's auth URL
+   */
   const handleOAuthConnect = async (provider: string) => {
     try {
       setIsConnecting(true);
@@ -72,6 +83,7 @@ export default function PersonalIntegrations({
       let authUrl: string;
       let clientId: string;
       
+      // Get client ID based on provider type
       switch (provider) {
         case 'google':
           clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!;
@@ -83,8 +95,10 @@ export default function PersonalIntegrations({
           throw new Error(`Unsupported provider: ${provider}`);
       }
       
+      // Generate random state for CSRF protection
       const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
       
+      // Store OAuth context in localStorage for callback handling
       localStorage.setItem('oauth_provider', provider);
       localStorage.setItem('oauth_state', state);
       localStorage.setItem('oauth_user_id', currentUser);
@@ -96,6 +110,7 @@ export default function PersonalIntegrations({
         scopes: getProviderScopes(provider as any)
       };
       
+      // Generate provider-specific OAuth URL
       switch (provider) {
         case 'google':
           authUrl = getGoogleOAuthUrl(oauthConfig);
@@ -107,6 +122,7 @@ export default function PersonalIntegrations({
           throw new Error(`Unsupported provider: ${provider}`);
       }
       
+      // Redirect to provider's OAuth page
       window.location.href = authUrl;
       
     } catch (err) {
@@ -116,11 +132,17 @@ export default function PersonalIntegrations({
     }
   };
   
+  /**
+   * Deletes an integration and updates local state
+   * If the deleted integration is currently selected, clears selection and returns to list view
+   */
   const handleDeleteIntegration = async (integrationId: string) => {
     try {
       await deleteIntegration(integrationId);
+      // Remove from local state immediately for responsive UI
       setIntegrations(prev => prev.filter(int => int.id !== integrationId));
       
+      // Clear selection if the deleted integration was currently selected
       if (integration?.id === integrationId) {
         setIntegration(null);
         setActiveTab('list');
@@ -131,13 +153,19 @@ export default function PersonalIntegrations({
     }
   };
 
+  /**
+   * Toggles the active/inactive status of the currently selected integration
+   * Updates both the selected integration and the integrations list
+   */
   const toggleIntegrationActive = async () => {
     if (!integration) return;
 
     try {
+      // Toggle status between active and inactive
       const updatedIntegration = await updateIntegration(integration.id, {
         status: integration.status === 'active' ? 'inactive' : 'active'
       });
+      // Update both the selected integration and the list
       setIntegration(updatedIntegration);
       setIntegrations(prev => prev.map(int => 
         int.id === updatedIntegration.id ? updatedIntegration : int
@@ -148,6 +176,10 @@ export default function PersonalIntegrations({
     }
   };
 
+  /**
+   * Synchronizes the selected integration with the external provider
+   * Updates integration data after successful sync and shows temporary success message
+   */
   const handleSync = async () => {
     if (!integration) return;
 
@@ -160,6 +192,7 @@ export default function PersonalIntegrations({
       
       if (result.success) {
         setSyncMessage('Sync completed successfully!');
+        // Refresh integration data to reflect any changes from sync
         const updatedIntegration = await getIntegration(integration.id);
         if (updatedIntegration) {
           setIntegration(updatedIntegration);
@@ -172,10 +205,12 @@ export default function PersonalIntegrations({
       setError('Failed to sync integration. Please try again.');
     } finally {
       setIsSyncing(false);
+      // Auto-clear success message after 5 seconds
       setTimeout(() => setSyncMessage(null), 5000);
     }
   };
 
+  // Early returns for loading and error states
   if (loading) {
     return <div className="p-4">Loading personal integrations...</div>;
   }

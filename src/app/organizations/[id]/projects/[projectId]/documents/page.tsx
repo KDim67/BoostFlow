@@ -10,56 +10,81 @@ import { getDocument, getDocuments, deleteDocument } from '@/lib/firebase/firest
 import { Organization } from '@/lib/types/organization';
 import DocumentUploadModal from '@/components/modals/DocumentUploadModal';
 
+// Document interface representing a file uploaded to the project
 interface Document {
-  id: string;
-  name: string;
-  type: string;
-  size: string;
-  uploadedBy: string;
-  uploadedAt: string;
-  folder?: string;
-  url?: string;
+  id: string;           // Unique document identifier
+  name: string;         // Original filename
+  type: string;         // File extension/type (pdf, docx, etc.)
+  size: string;         // Human-readable file size
+  uploadedBy: string;   // User ID who uploaded the document
+  uploadedAt: string;   // Upload timestamp
+  folder?: string;      // Optional folder organization
+  url?: string;         // Optional direct download URL
 }
 
+// Project interface for basic project information
 interface Project {
-  id: string;
-  name: string;
-  organizationId: string;
+  id: string;           // Unique project identifier
+  name: string;         // Project display name
+  organizationId: string; // Parent organization ID
 }
 
+/**
+ * ProjectDocumentsPage - Main component for managing project documents
+ * Handles document viewing, uploading, downloading, and organization
+ * Requires user authentication and organization permissions
+ */
 export default function ProjectDocumentsPage() {
+  // Extract route parameters from Next.js dynamic routing
   const { id, projectId } = useParams();
-  const [organization, setOrganization] = useState<Organization | null>(null);
-  const [project, setProject] = useState<Project | null>(null);
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [folders, setFolders] = useState<string[]>(['General', 'Contracts', 'Design', 'Reports']);
-  const [selectedFolder, setSelectedFolder] = useState<string>('All');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [showNewFolderModal, setShowNewFolderModal] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-  const { user } = useAuth();
-  const router = useRouter();
+  
+  // Core data state
+  const [organization, setOrganization] = useState<Organization | null>(null); // Current organization data
+  const [project, setProject] = useState<Project | null>(null);               // Current project data
+  const [documents, setDocuments] = useState<Document[]>([]);                 // List of project documents
+  
+  // Document organization state
+  const [folders, setFolders] = useState<string[]>(['General', 'Contracts', 'Design', 'Reports']); // Available folders
+  const [selectedFolder, setSelectedFolder] = useState<string>('All');        // Currently selected folder filter
+  const [searchTerm, setSearchTerm] = useState('');                          // Document search query
+  
+  // UI state management
+  const [isLoading, setIsLoading] = useState(true);                          // Loading indicator
+  const [error, setError] = useState<string | null>(null);                   // Error message display
+  const [showUploadModal, setShowUploadModal] = useState(false);             // Upload modal visibility
+  const [showNewFolderModal, setShowNewFolderModal] = useState(false);       // New folder modal visibility
+  const [newFolderName, setNewFolderName] = useState('');                    // New folder name input
+  
+  // Authentication and navigation
+  const { user } = useAuth();   // Current authenticated user
+  const router = useRouter();   // Next.js router for navigation
+  
+  // Normalize route parameters (handle both string and array formats)
   const organizationId = Array.isArray(id) ? id[0] : id;
   const projectIdString = Array.isArray(projectId) ? projectId[0] : projectId;
 
+  /**
+   * Fetches all documents for the current project from Firestore
+   * Filters by projectId and organizationId for security
+   * Formats the data for UI consumption
+   */
   const fetchDocuments = async () => {
     try {
+      // Query Firestore for documents belonging to this specific project and organization
       const docs = await getDocuments('project-documents', [
         where('projectId', '==', projectIdString),
         where('organizationId', '==', organizationId)
       ]);
       
+      // Transform raw Firestore data into UI-friendly format
       const formattedDocs = docs.map((doc: any) => ({
         id: doc.id,
         name: doc.name,
         type: doc.type,
         size: doc.size,
         uploadedBy: doc.uploadedBy,
-        uploadedAt: new Date(doc.uploadedAt).toLocaleDateString(),
-        folder: doc.folder || 'General',
+        uploadedAt: new Date(doc.uploadedAt).toLocaleDateString(), // Convert timestamp to readable date
+        folder: doc.folder || 'General', // Default to 'General' if no folder specified
         url: doc.url
       }));
       
@@ -69,14 +94,21 @@ export default function ProjectDocumentsPage() {
     }
   };
 
+  /**
+   * Main effect hook that initializes the page data
+   * Handles authentication, permission checking, and data loading
+   * Runs when user, organizationId, or projectIdString changes
+   */
   useEffect(() => {
     const fetchProjectData = async () => {
+      // Early return if required data is missing
       if (!user || !organizationId || !projectIdString) return;
       
       try {
         setIsLoading(true);
         setError(null);
         
+        // Check if user has at least viewer permission for this organization
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'viewer');
         
         if (!permission) {
@@ -85,9 +117,11 @@ export default function ProjectDocumentsPage() {
           return;
         }
         
+        // Fetch organization data
         const orgData = await getOrganization(organizationId);
         setOrganization(orgData);
         
+        // Fetch project data and validate it exists
         const projectData = await getDocument('projects', projectIdString);
         
         if (!projectData) {
@@ -96,6 +130,7 @@ export default function ProjectDocumentsPage() {
           return;
         }
         
+        // Security check: ensure project belongs to the current organization
         if (projectData.organizationId !== organizationId) {
           setError('This project does not belong to the selected organization');
           setIsLoading(false);
@@ -104,6 +139,7 @@ export default function ProjectDocumentsPage() {
         
         setProject(projectData as Project);
         
+        // Load all documents for this project
         await fetchDocuments();
       } catch (error) {
         console.error('Error fetching project data:', error);
@@ -114,8 +150,14 @@ export default function ProjectDocumentsPage() {
     };
 
     fetchProjectData();
-  }, [user, organizationId, projectIdString]);
+  }, [user, organizationId, projectIdString]); // Re-run when these change
 
+  /**
+   * Returns appropriate SVG icon based on file type
+   * Uses color coding: PDF (red), Word (blue), Excel (green), Figma (purple), default (gray)
+   * @param type - File extension or type string
+   * @returns JSX.Element - SVG icon component
+   */
   const getFileIcon = (type: string) => {
     switch (type.toLowerCase()) {
       case 'pdf':
@@ -153,12 +195,20 @@ export default function ProjectDocumentsPage() {
     }
   };
 
+  /**
+   * Filters documents based on search term and selected folder
+   * Combines text search (case-insensitive) with folder filtering
+   */
   const filteredDocuments = documents.filter(doc => {
     const matchesSearch = doc.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFolder = selectedFolder === 'All' || doc.folder === selectedFolder;
     return matchesSearch && matchesFolder;
   });
 
+  /**
+   * Creates a new folder if the name is valid and doesn't already exist
+   * Validates input and updates the folders list
+   */
   const handleCreateFolder = () => {
     if (newFolderName.trim() && !folders.includes(newFolderName.trim())) {
       setFolders([...folders, newFolderName.trim()]);
@@ -167,21 +217,33 @@ export default function ProjectDocumentsPage() {
     }
   };
 
+  /**
+   * Callback function executed when a document is successfully uploaded
+   * Adds the new document to the beginning of the list and closes the modal
+   * @param document - The newly uploaded document object
+   */
   const handleUploadSuccess = (document: any) => {
     setDocuments(prev => [document, ...prev]);
     setShowUploadModal(false);
   };
 
+  /**
+   * Handles secure document download with authentication
+   * Creates a temporary download link and triggers browser download
+   * @param document - Document object to download
+   */
   const handleDownload = async (document: Document) => {
     try {
+      // Ensure user is authenticated before allowing download
       if (!user) {
         setError('You must be logged in to download documents');
         return;
       }
 
+      // Get Firebase authentication token for API authorization
       const token = await user.getIdToken();
       
-      // Use the secure download API
+      // Call secure download API with authentication
       const response = await fetch('/api/files/download', {
         method: 'POST',
         headers: {
@@ -196,14 +258,16 @@ export default function ProjectDocumentsPage() {
         throw new Error(errorData.error || 'Failed to download document');
       }
 
-      // Handle direct file download
+      // Convert response to blob and create download link
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = window.document.createElement('a');
       a.href = url;
-      a.download = document.name;
+      a.download = document.name; // Use original filename
       window.document.body.appendChild(a);
-      a.click();
+      a.click(); // Trigger download
+      
+      // Clean up
       window.URL.revokeObjectURL(url);
       window.document.body.removeChild(a);
     } catch (error) {
@@ -212,17 +276,25 @@ export default function ProjectDocumentsPage() {
     }
   };
 
+  /**
+   * Handles document deletion with user confirmation
+   * Calls secure delete API and updates local state on success
+   * @param document - Document object to delete
+   */
   const handleDelete = async (document: Document) => {
+    // Show confirmation dialog to prevent accidental deletions
     if (!confirm(`Are you sure you want to delete "${document.name}"? This action cannot be undone.`)) {
       return;
     }
 
     try {
+      // Get authentication token for API call
       const token = await user?.getIdToken();
       if (!token) {
         throw new Error('No authentication token');
       }
 
+      // Call secure delete API
       const response = await fetch('/api/files/delete', {
         method: 'DELETE',
         headers: {
@@ -236,6 +308,7 @@ export default function ProjectDocumentsPage() {
         throw new Error('Failed to delete document');
       }
 
+      // Remove document from local state after successful deletion
       setDocuments(prev => prev.filter(doc => doc.id !== document.id));
     } catch (error) {
       console.error('Error deleting document:', error);
@@ -243,6 +316,7 @@ export default function ProjectDocumentsPage() {
     }
   };
 
+  // Show loading spinner while data is being fetched
   if (isLoading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -251,6 +325,7 @@ export default function ProjectDocumentsPage() {
     );
   }
 
+  // Show error state if there's an error or required data is missing
   if (error || !organization || !project) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 max-w-2xl mx-auto">

@@ -30,7 +30,7 @@ export default function LoginForm() {
     try {
       const userCredential = await login(email, password);
       
-      // Proceed to organizations (email verification is now optional and can be done from settings)
+      // Proceed to organizations
       router.push('/organizations');
     } catch (error: any) {
       setErrorMessage(error.message || 'Failed to log in');

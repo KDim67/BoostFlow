@@ -8,19 +8,40 @@ import { getOrganization, hasOrganizationPermission, updateOrganization, getOrga
 import { Organization, SubscriptionPlan } from '@/lib/types/organization';
 import { NotificationService } from '@/lib/firebase/notificationService';
 
+/**
+ * OrganizationBilling Component
+ * 
+ * Manages subscription plans and billing for organizations. Allows admin users to:
+ * - View current subscription details
+ * - Compare available plans (Free, Starter, Professional, Enterprise)
+ * - Upgrade/downgrade plans with team size and billing cycle configuration
+ * - Apply volume discounts based on team size
+ * - Handle plan change notifications to organization members
+ */
 export default function OrganizationBilling() {
   const { id } = useParams();
+  // Core organization and UI state
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  
+  // Subscription configuration state
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan>('free');
-  const [teamSize, setTeamSize] = useState(300);
-  const [billingCycle, setBillingCycle] = useState('monthly');
+  const [teamSize, setTeamSize] = useState(300); // Default team size for pricing calculations
+  const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' or 'annually'
+  
   const { user } = useAuth();
+  // Handle dynamic route parameter (can be string or array)
   const organizationId = Array.isArray(id) ? id[0] : id;
 
+  /**
+   * Fetches organization billing data and initializes component state
+   * - Verifies user has admin permissions for billing management
+   * - Loads current subscription details
+   * - Sets team size based on existing subscription or active member count
+   */
   useEffect(() => {
     const fetchBillingData = async () => {
       if (!user || !organizationId) return;
@@ -29,6 +50,7 @@ export default function OrganizationBilling() {
         setIsLoading(true);
         setError(null);
         
+        // Verify user has admin permissions to manage billing
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'admin');
         
         if (!permission) {
@@ -41,11 +63,13 @@ export default function OrganizationBilling() {
         setOrganization(orgData);
         if (orgData) {
           setSelectedPlan(orgData.plan);
+          // Use existing team size or calculate from active members
           if (orgData.subscriptionDetails?.teamSize) {
             setTeamSize(orgData.subscriptionDetails.teamSize);
           } else {
             const members = await getOrganizationMembers(organizationId);
             const activeMembers = members.filter(member => member.status === 'active');
+            // Set minimum team size based on plan limits
             setTeamSize(Math.max(activeMembers.length, orgData.plan === 'free' ? 15 : 50));
           }
         }
@@ -60,17 +84,27 @@ export default function OrganizationBilling() {
     fetchBillingData();
   }, [user, organizationId]);
 
+  /**
+   * Handles subscription plan updates with validation and member notifications
+   * - Validates plan constraints (free plan user limits)
+   * - Ensures team size doesn't exceed active member count
+   * - Updates organization subscription details
+   * - Sends notifications to all active members about plan changes
+   */
   const handleUpdatePlan = async () => {
     if (!organization || !organizationId) return;
     
+    // Get current active members for validation
     const currentMembers = await getOrganizationMembers(organizationId);
     const activeMembers = currentMembers.filter(member => member.status === 'active');
     
+    // Validate free plan user limit
     if (selectedPlan === 'free' && teamSize > 15) {
       setError('Free plan is limited to 15 users. Please reduce team size or choose a different plan.');
       return;
     }
     
+    // Ensure team size accommodates current active members
     if (activeMembers.length > teamSize) {
       setError(`Cannot set team size to ${teamSize}. You currently have ${activeMembers.length} active members. Please remove members first or increase the team size.`);
       return;
@@ -78,16 +112,17 @@ export default function OrganizationBilling() {
     
     setIsUpdating(true);
     try {
+      // Calculate subscription pricing details with discounts
       const subscriptionDetails = {
         teamSize,
         billingCycle,
         pricePerUser: selectedPlan === 'starter' ? parseFloat(calculatePrice(basePrices.starter)) : 
                      selectedPlan === 'professional' ? parseFloat(calculatePrice(basePrices.pro)) : 0,
         totalPrice: selectedPlan === 'free' ? 0 : 
-                   selectedPlan === 'enterprise' ? 0 : 
+                   selectedPlan === 'enterprise' ? 0 : // Enterprise pricing is custom
                    parseFloat(calculatePrice(selectedPlan === 'starter' ? basePrices.starter : basePrices.pro)) * teamSize,
         subscribedAt: new Date().toISOString(),
-        discount: getCurrentDiscount()
+        discount: getCurrentDiscount() // Volume discount based on team size
       };
 
       await updateOrganization(organizationId, {
@@ -99,10 +134,12 @@ export default function OrganizationBilling() {
       const isDowngradeChange = isDowngrade(organization.plan, selectedPlan);
       const changeType = isDowngradeChange ? 'downgraded' : 'upgraded';
       
+      // Send plan change notifications to all active organization members
       try {
         const members = await getOrganizationMembers(organizationId);
         const activeMembers = members.filter(member => member.status === 'active');
         
+        // Create notification promises for all active members
         const notificationPromises = activeMembers.map(member => 
           NotificationService.createNotification(
             member.userId,
@@ -119,6 +156,7 @@ export default function OrganizationBilling() {
           )
         );
         
+        // Send all notifications concurrently
         await Promise.all(notificationPromises);
       } catch (notificationError) {
         console.warn('Failed to send notifications to some members:', notificationError);
@@ -142,32 +180,45 @@ export default function OrganizationBilling() {
     }
   };
 
+  // Base monthly pricing per user (in EUR) before discounts
   const basePrices = {
     starter: 7.49,
     pro: 15
   };
 
+  /**
+   * Calculates discounted price per user based on team size and billing cycle
+   * Volume discounts: 5% (20+ users), 10% (50+), 15% (100+), 20% (300+), 25% (500+)
+   * Annual billing discount: 17% off monthly price
+   */
   const calculatePrice = (basePrice: number) => {
     let discount = 0;
     
+    // Apply volume discounts based on team size tiers
     if (teamSize > 500) {
-      discount = 0.25;
+      discount = 0.25; // 25% discount for 500+ users
     } else if (teamSize > 300) {
-      discount = 0.20;
+      discount = 0.20; // 20% discount for 300+ users
     } else if (teamSize > 100) {
-      discount = 0.15;
+      discount = 0.15; // 15% discount for 100+ users
     } else if (teamSize > 50) {
-      discount = 0.10;
+      discount = 0.10; // 10% discount for 50+ users
     } else if (teamSize > 20) {
-      discount = 0.05;
+      discount = 0.05; // 5% discount for 20+ users
     }
     
+    // Additional discount for annual billing
     const annualDiscount = billingCycle === 'annually' ? 0.17 : 0;
     
+    // Apply both volume and annual discounts
     const discountedPrice = basePrice * (1 - discount) * (1 - annualDiscount);
     return discountedPrice.toFixed(2);
   };
 
+  /**
+   * Returns the current volume discount percentage based on team size
+   * Used for displaying discount information in the UI
+   */
   const getCurrentDiscount = () => {
     if (teamSize > 500) return 25;
     if (teamSize > 300) return 20;
@@ -177,6 +228,10 @@ export default function OrganizationBilling() {
     return 0;
   };
 
+  /**
+   * Returns feature list for each subscription plan
+   * Used to display plan capabilities in the pricing cards
+   */
   const getPlanFeatures = (plan: SubscriptionPlan) => {
     switch (plan) {
       case 'free':
@@ -217,13 +272,20 @@ export default function OrganizationBilling() {
     }
   };
 
+  /**
+   * Returns formatted price string for a given plan
+   * Uses current subscription price if viewing the active plan,
+   * otherwise calculates price based on current team size and billing cycle
+   */
   const getPlanPrice = (plan: SubscriptionPlan) => {
+    // Show actual subscription price for current plan
     if (organization?.subscriptionDetails && organization.plan === plan) {
       if (plan === 'free') return '€0';
       if (plan === 'enterprise') return 'Custom';
       return `€${organization.subscriptionDetails.pricePerUser.toFixed(2)}`;
     }
     
+    // Calculate price for plan selection
     switch (plan) {
       case 'free': return '€0';
       case 'starter': return `€${calculatePrice(basePrices.starter)}`;
@@ -233,6 +295,9 @@ export default function OrganizationBilling() {
     }
   };
 
+  /**
+   * Returns the pricing unit text for display (e.g., "/month per user")
+   */
   const getPlanPriceUnit = (plan: SubscriptionPlan) => {
     switch (plan) {
       case 'free': return '/forever';
@@ -243,6 +308,9 @@ export default function OrganizationBilling() {
     }
   };
 
+  /**
+   * Returns numeric order for plan comparison (used to determine upgrades vs downgrades)
+   */
   const getPlanOrder = (plan: SubscriptionPlan): number => {
     switch (plan) {
       case 'free': return 0;
@@ -253,10 +321,14 @@ export default function OrganizationBilling() {
     }
   };
 
+  /**
+   * Determines if a plan change is a downgrade (affects notification messaging)
+   */
   const isDowngrade = (currentPlan: SubscriptionPlan, newPlan: SubscriptionPlan): boolean => {
     return getPlanOrder(newPlan) < getPlanOrder(currentPlan);
   };
 
+  // Loading state with spinner
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex justify-center items-center">
@@ -265,6 +337,7 @@ export default function OrganizationBilling() {
     );
   }
 
+  // Error state or organization not found
   if (error || !organization) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 max-w-2xl mx-auto">

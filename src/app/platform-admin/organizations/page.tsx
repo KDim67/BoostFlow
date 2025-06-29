@@ -1,5 +1,7 @@
 'use client';
 
+// React component for platform administrators to manage organizations
+// Provides functionality for viewing, filtering, suspending, and deleting organizations
 import React, { useEffect, useState } from 'react';
 import { Metadata } from 'next';
 import { useRouter } from 'next/navigation';
@@ -11,40 +13,52 @@ import { usePlatformAuth } from '@/lib/firebase/usePlatformAuth';
 
 import Badge from '@/components/Badge';
 
+/**
+ * Platform admin page for managing organizations
+ * Requires super admin privileges to access
+ * Features: search, filter, pagination, suspend/unsuspend, delete, plan management
+ */
 export default function OrganizationManagementPage() {
   const router = useRouter();
   const { isSuperAdmin, isLoading: authLoading } = usePlatformAuth();
   
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [filteredOrganizations, setFilteredOrganizations] = useState<Organization[]>([]);
+  // Core organization data state
+  const [organizations, setOrganizations] = useState<Organization[]>([]); // Master list of all organizations
+  const [filteredOrganizations, setFilteredOrganizations] = useState<Organization[]>([]); // Organizations after applying filters
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [planFilter, setPlanFilter] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
+  // Filter and search state
+  const [searchQuery, setSearchQuery] = useState<string>(''); // Text search by organization name
+  const [planFilter, setPlanFilter] = useState<string>(''); // Filter by subscription plan
+  const [statusFilter, setStatusFilter] = useState<string>(''); // Filter by status (active/suspended/trial)
   
+  // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(5);
-  const [paginatedOrganizations, setPaginatedOrganizations] = useState<Organization[]>([]);
+  const [pageSize, setPageSize] = useState<number>(5); // Number of organizations per page
+  const [paginatedOrganizations, setPaginatedOrganizations] = useState<Organization[]>([]); // Current page data
+  
+  // Modal state for user interactions
   const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
   const [organizationToDelete, setOrganizationToDelete] = useState<Organization | null>(null);
   const [isManageModalOpen, setIsManageModalOpen] = useState<boolean>(false);
   const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
   
+  // Redirect non-super-admin users to platform admin dashboard
   useEffect(() => {
     if (!authLoading && !isSuperAdmin) {
       router.push('/platform-admin');
     }
   }, [authLoading, isSuperAdmin, router]);
 
+  // Fetch all organizations on component mount
   useEffect(() => {
     const fetchOrganizations = async () => {
       try {
         setLoading(true);
         const orgs = await getAllOrganizations();
         setOrganizations(orgs);
-        setFilteredOrganizations(orgs);
+        setFilteredOrganizations(orgs); // Initialize filtered list with all organizations
       } catch (err) {
         console.error('Error fetching organizations:', err);
         setError('Failed to load organizations. Please try again later.');
@@ -56,21 +70,30 @@ export default function OrganizationManagementPage() {
     fetchOrganizations();
   }, []);
 
+  // Re-apply filters whenever search/filter criteria or data changes
   useEffect(() => {
     applyFilters();
   }, [searchQuery, planFilter, statusFilter, organizations]);
 
+  // Re-calculate pagination whenever filtered data or pagination settings change
   useEffect(() => {
     applyPagination();
   }, [filteredOrganizations, currentPage, pageSize]);
 
+  // Reset to first page when page size changes to avoid empty pages
   useEffect(() => {
     setCurrentPage(1);
   }, [pageSize]);
 
+  /**
+   * Apply search and filter criteria to the organizations list
+   * Filters are applied in sequence: search -> plan -> status
+   * Resets pagination to first page after filtering
+   */
   const applyFilters = () => {
     let result = [...organizations];
     
+    // Text search by organization name (case-insensitive)
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(org => 
@@ -78,10 +101,12 @@ export default function OrganizationManagementPage() {
       );
     }
     
+    // Filter by subscription plan
     if (planFilter) {
       result = result.filter(org => org.plan === planFilter.toLowerCase());
     }
     
+    // Filter by organization status
     if (statusFilter) {
       if (statusFilter === 'active') {
         result = result.filter(org => !org.suspended);
@@ -93,15 +118,20 @@ export default function OrganizationManagementPage() {
     }
     
     setFilteredOrganizations(result);
-    setCurrentPage(1);
+    setCurrentPage(1); // Reset to first page when filters change
   };
 
+  /**
+   * Calculate which organizations to display on the current page
+   * Uses zero-based indexing for array slicing
+   */
   const applyPagination = () => {
     const startIndex = (currentPage - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     setPaginatedOrganizations(filteredOrganizations.slice(startIndex, endIndex));
   };
 
+  // Pagination calculations for UI display
   const totalPages = Math.ceil(filteredOrganizations.length / pageSize);
   const startIndex = (currentPage - 1) * pageSize + 1;
   const endIndex = Math.min(currentPage * pageSize, filteredOrganizations.length);
@@ -114,21 +144,32 @@ export default function OrganizationManagementPage() {
     setPageSize(newPageSize);
   };
 
+  /**
+   * Format Firestore timestamp or Date object for display
+   * Handles both Firestore Timestamp objects and regular Date objects
+   */
   const formatDate = (timestamp: any) => {
     if (!timestamp) return 'N/A';
     
+    // Handle Firestore Timestamp objects vs regular Date objects
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return date.toLocaleDateString();
   };
 
+  /**
+   * Toggle organization suspension status
+   * Updates both database and local state, then re-applies filters
+   */
   const handleSuspendOrganization = async (org: Organization) => {
     if (confirm(`Are you sure you want to ${org.suspended ? 'unsuspend' : 'suspend'} ${org.name}?`)) {
       try {
+        // Update in database
         await updateOrganization(org.id, { 
           suspended: !org.suspended,
           updatedAt: new Date()
         });
         
+        // Update local state to reflect changes immediately
         const updatedOrgs = organizations.map(o => {
           if (o.id === org.id) {
             return { ...o, suspended: !o.suspended, updatedAt: new Date() };
@@ -137,7 +178,7 @@ export default function OrganizationManagementPage() {
         });
         
         setOrganizations(updatedOrgs);
-        applyFilters();
+        applyFilters(); // Re-apply filters to update filtered list
       } catch (err) {
         console.error('Error suspending organization:', err);
         alert('Failed to update organization. Please try again.');
@@ -145,15 +186,25 @@ export default function OrganizationManagementPage() {
     }
   };
 
+  /**
+   * Initiate organization deletion process
+   * Opens confirmation modal instead of immediate deletion
+   */
   const handleDeleteOrganization = async (org: Organization) => {
     setOrganizationToDelete(org);
     setDeleteModalOpen(true);
   };
 
+  /**
+   * Execute organization deletion after user confirmation
+   * Calls API endpoint with authentication, then updates local state
+   * Handles cleanup of modal state on success or failure
+   */
   const handleConfirmDelete = async () => {
     if (!organizationToDelete) return;
     
     try {
+      // Ensure user is authenticated before making API call
       const user = auth.currentUser;
       if (!user) {
         throw new Error('User not authenticated');
@@ -161,6 +212,7 @@ export default function OrganizationManagementPage() {
       
       const token = await user.getIdToken();
       
+      // Call deletion API with authentication
       const response = await fetch('/api/organizations/delete', {
         method: 'DELETE',
         headers: {
@@ -174,9 +226,12 @@ export default function OrganizationManagementPage() {
         throw new Error('Failed to delete organization');
       }
       
+      // Remove organization from local state
       const updatedOrgs = organizations.filter(o => o.id !== organizationToDelete.id);
       setOrganizations(updatedOrgs);
       applyFilters();
+      
+      // Clean up modal state
       setDeleteModalOpen(false);
       setOrganizationToDelete(null);
     } catch (err) {
@@ -185,13 +240,19 @@ export default function OrganizationManagementPage() {
     }
   };
 
+  /**
+   * Update organization's subscription plan
+   * Updates database, local state, and closes management modal
+   */
   const handlePlanChange = async (organizationId: string, newPlan: SubscriptionPlan) => {
     try {
+      // Update plan in database
       await updateOrganization(organizationId, { 
         plan: newPlan,
         updatedAt: new Date()
       });
       
+      // Update local state to reflect changes
       const updatedOrgs = organizations.map(org => {
         if (org.id === organizationId) {
           return { ...org, plan: newPlan, updatedAt: new Date() };
@@ -201,6 +262,8 @@ export default function OrganizationManagementPage() {
       
       setOrganizations(updatedOrgs);
       applyFilters();
+      
+      // Close management modal and clear selection
       setIsManageModalOpen(false);
       setSelectedOrganization(null);
     } catch (err) {

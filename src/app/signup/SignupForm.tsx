@@ -7,7 +7,12 @@ import { auth } from '@/lib/firebase/config';
 import { useAuth } from '@/lib/firebase/useAuth';
 import { syncUserProfile } from '@/lib/firebase/userProfileService';
 
+/**
+ * SignupForm component handles user registration with email/password authentication
+ * Includes form validation, Firebase user creation, and profile synchronization
+ */
 export default function SignupForm() {
+  // Form field state management
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -20,12 +25,18 @@ export default function SignupForm() {
   const { signup, loginWithGoogle, sendEmailVerification, error, clearError } = useAuth();
   const router = useRouter();
 
+  // Sync authentication errors from useAuth hook to local error state
   useEffect(() => {
     if (error) {
       setErrorMessage(error);
     }
   }, [error]);
 
+  /**
+   * Validates password meets minimum security requirements
+   * @param password - The password string to validate
+   * @returns boolean indicating if password is valid
+   */
   const validatePassword = (password: string) => {
     if (password.length < 8) {
       setPasswordError('Password must be at least 8 characters long');
@@ -35,36 +46,47 @@ export default function SignupForm() {
     return true;
   };
 
+  /**
+   * Handles form submission for user registration
+   * Validates input, creates Firebase user, syncs profile data, and redirects on success
+   * @param e - Form submission event
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMessage('');
     clearError();
     
+    // Early return if password validation fails
     if (!validatePassword(password)) {
       setIsLoading(false);
       return;
     }
     
     try {
+      // Combine first and last name for Firebase displayName
       const displayName = `${firstName} ${lastName}`.trim();
       const userCredential = await signup(email, password, displayName);
       
+      // Safety check: ensure user object exists after creation
       if (!userCredential.user) {
         throw new Error('User creation succeeded but user is not available');
       }
       
+      // Sync additional profile data to Firestore
       await syncUserProfile(userCredential.user, {
         firstName,
         lastName,
         createdAt: new Date()
       } as any);
       
-      // Redirect to organizations page (email verification moved to settings)
+      // Redirect to organizations page
       router.push('/organizations');
     } catch (error: any) {
+      // Display user-friendly error message
       setErrorMessage(error.message || 'Failed to create account');
     } finally {
+      // Always reset loading state regardless of success/failure
       setIsLoading(false);
     }
   };
@@ -132,6 +154,7 @@ export default function SignupForm() {
           value={password}
           onChange={(e) => {
             setPassword(e.target.value);
+            // Real-time password validation as user types
             validatePassword(e.target.value);
           }}
         />

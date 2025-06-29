@@ -1,3 +1,7 @@
+/**
+ * Props interface for the Badge component
+ * Defines the structure and types for badge configuration
+ */
 interface BadgeProps {
   type: 'priority' | 'plan' | 'role' | 'status' | 'severity' | 'visibility' | 'custom';
   value: string;
@@ -6,8 +10,18 @@ interface BadgeProps {
   className?: string;
 }
 
+/**
+ * A versatile badge component for displaying categorized information with semantic colors
+ * Supports multiple types (priority, plan, role, status, etc.) with automatic color coding
+ * and optional icons for enhanced visual communication
+ */
 export default function Badge({ type, value, variant = 'default', size = 'md', className = '' }: BadgeProps) {
+  /**
+   * Generates CSS classes for the badge based on type, value, and size
+   * Returns a string combining size, color, and base styling classes
+   */
   const getStyles = () => {
+    // Size-based styling presets for consistent spacing and typography
     const baseStyles = {
       sm: 'px-2 py-0.5 text-xs',
       md: 'px-2.5 py-1 text-xs',
@@ -15,10 +29,13 @@ export default function Badge({ type, value, variant = 'default', size = 'md', c
     };
 
     const sizeClass = baseStyles[size];
-    let colorClass = '';
+    let colorClass = ''; // Will be populated based on type and value combination
 
+    // Determine color scheme based on badge type and value
+    // Each case handles semantic meaning with appropriate visual feedback
     switch (type) {
       case 'priority':
+        // Priority levels with intuitive color coding: red=urgent, yellow=moderate, green=low
         switch (value.toLowerCase()) {
           case 'high':
             colorClass = 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
@@ -35,6 +52,7 @@ export default function Badge({ type, value, variant = 'default', size = 'md', c
         break;
 
       case 'plan':
+        // Subscription plan tiers with progressive color scheme
         switch (value.toLowerCase()) {
           case 'free':
             colorClass = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
@@ -54,6 +72,7 @@ export default function Badge({ type, value, variant = 'default', size = 'md', c
         break;
 
       case 'role':
+        // User role hierarchy with distinct colors for each permission level
         switch (value.toLowerCase()) {
           case 'owner':
             colorClass = 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';
@@ -73,12 +92,15 @@ export default function Badge({ type, value, variant = 'default', size = 'md', c
         break;
 
       case 'status':
+        // Status indicators covering various states with semantic color mapping
         switch (value.toLowerCase()) {
+          // Positive/completed states - green indicates success or active status
           case 'active':
           case 'completed':
           case 'success':
             colorClass = 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
             break;
+          // In-progress/transitional states - blue indicates ongoing activity
           case 'in-progress':
           case 'in progress':
           case 'pending':
@@ -86,11 +108,13 @@ export default function Badge({ type, value, variant = 'default', size = 'md', c
           case 'invited':
             colorClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
             break;
+          // Warning/caution states - yellow indicates attention needed
           case 'on-hold':
           case 'on hold':
           case 'warning':
             colorClass = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
             break;
+          // Error/problem states - red indicates issues requiring action
           case 'inactive':
           case 'suspended':
           case 'error':
@@ -104,6 +128,7 @@ export default function Badge({ type, value, variant = 'default', size = 'md', c
         break;
 
       case 'visibility':
+        // Access level indicators for content or resource visibility
         switch (value.toLowerCase()) {
           case 'public':
             colorClass = 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
@@ -117,15 +142,19 @@ export default function Badge({ type, value, variant = 'default', size = 'md', c
         break;
 
       case 'severity':
+        // Issue severity levels with escalating color intensity
         switch (value.toLowerCase()) {
+          // Critical issues requiring immediate attention
           case 'high':
           case 'critical':
             colorClass = 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
             break;
+          // Moderate issues that should be addressed
           case 'medium':
           case 'moderate':
             colorClass = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
             break;
+          // Minor issues or normal severity
           case 'low':
           case 'normal':
             colorClass = 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
@@ -137,19 +166,28 @@ export default function Badge({ type, value, variant = 'default', size = 'md', c
 
       case 'custom':
       default:
+        // Fallback styling for custom types or unrecognized values
         colorClass = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
     }
 
     return `${sizeClass} font-medium rounded-full ${colorClass}`;
   };
 
+  /**
+   * Generates contextual SVG icons based on badge type and value
+   * Only renders when variant is set to 'with-icon'
+   * Returns null for unsupported combinations
+   */
   const getIcon = () => {
     if (variant !== 'with-icon') return null;
 
+    // Icon size scales with badge size for visual consistency
     const iconSize = size === 'lg' ? 'w-4 h-4' : 'w-3 h-3';
 
+    // Icon selection based on semantic meaning of badge type and value
     switch (type) {
       case 'plan':
+        // Plan-specific icons representing different subscription tiers
         switch (value.toLowerCase()) {
           case 'free':
             return (
@@ -181,9 +219,11 @@ export default function Badge({ type, value, variant = 'default', size = 'md', c
         }
 
       case 'priority':
+        // Priority badges don't have icons to keep them minimal
         return null;
 
       case 'status':
+        // Status icons provide immediate visual feedback for state
         switch (value.toLowerCase()) {
           case 'active':
           case 'completed':
@@ -221,20 +261,29 @@ export default function Badge({ type, value, variant = 'default', size = 'md', c
         }
 
       default:
+        // No icons for unsupported badge types
         return null;
     }
   };
 
+  /**
+   * Formats the badge label text based on type-specific conventions
+   * Handles capitalization and word separation for better readability
+   */
   const getLabel = () => {
     switch (type) {
       case 'priority':
+        // Simple title case for priority levels
         return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
       case 'plan':
       case 'role':
+        // Title case for plan and role names
         return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
       case 'status':
+        // Convert hyphenated status values to space-separated title case
         return value.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
       default:
+        // Return value as-is for custom types
         return value;
     }
   };

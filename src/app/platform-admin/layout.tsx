@@ -5,39 +5,49 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { usePlatformAuth } from '@/lib/firebase/usePlatformAuth';
 
+/**
+ * Platform Administration Layout Component
+ */
 export default function PlatformAdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isMobileView, setIsMobileView] = useState(false);
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  // UI state management for responsive sidebar behavior
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); // Desktop sidebar collapse state
+  const [isMobileView, setIsMobileView] = useState(false); // Tracks if viewport is mobile size
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false); // Mobile sidebar visibility
   
   const pathname = usePathname();
   const router = useRouter();
   const { user, isPlatformAdmin, isSuperAdmin, isLoading } = usePlatformAuth();
 
+  // Redirect unauthorized users to login page
   useEffect(() => {
     if (!isLoading && !isPlatformAdmin) {
       router.push('/login');
     }
   }, [isLoading, isPlatformAdmin, router]);
 
+  // Handle responsive behavior and window resize events
   useEffect(() => {
     const handleResize = () => {
       setIsMobileView(window.innerWidth < 768);
       if (window.innerWidth >= 768) {
-        setIsMobileSidebarOpen(false);
+        setIsMobileSidebarOpen(false); // Auto-close mobile sidebar on desktop
       }
     };
 
-    handleResize();
+    handleResize(); // Set initial state
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  /**
+   * Determines the active navigation tab based on current pathname
+   * Used for highlighting the current section in the sidebar
+   */
   const getActiveTab = () => {
     if (pathname.includes('/platform-admin/users')) return 'users';
     if (pathname.includes('/platform-admin/organizations')) return 'organizations';
@@ -47,6 +57,7 @@ export default function PlatformAdminLayout({
 
   const activeTab = getActiveTab();
 
+  // Toggle functions for sidebar visibility
   const toggleMobileSidebar = () => {
     setIsMobileSidebarOpen(!isMobileSidebarOpen);
   };

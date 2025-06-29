@@ -1,3 +1,7 @@
+/**
+ * Core integration entity representing a third-party service connection
+ * Supports various integration types including API, webhook, OAuth, and custom implementations
+ */
 export interface Integration {
   id: string;
   name: string;
@@ -14,6 +18,10 @@ export interface Integration {
   errorMessage?: string;
 }
 
+/**
+ * Represents an event triggered by an integration
+ * Used for tracking integration activities and processing status
+ */
 export interface IntegrationEvent {
   id: string;
   integrationId: string;
@@ -25,6 +33,10 @@ export interface IntegrationEvent {
   error?: string;
 }
 
+/**
+ * Defines field mapping between source and target systems
+ * Enables data transformation during integration synchronization
+ */
 export interface DataMapping {
   id: string;
   integrationId: string;
@@ -34,7 +46,12 @@ export interface DataMapping {
   isRequired: boolean;
 }
 
+/**
+ * Retrieves integrations from localStorage with SSR safety
+ * @returns Array of stored integrations or empty array if unavailable
+ */
 function getStoredIntegrations(): Integration[] {
+  // Server-side rendering safety check
   if (typeof window === 'undefined') return [];
   
   try {
@@ -46,9 +63,14 @@ function getStoredIntegrations(): Integration[] {
   }
 }
 
+/**
+ * Fetches all integrations and converts date strings to Date objects
+ * @returns Promise resolving to array of integrations with proper date types
+ */
 export const getAllIntegrations = async (): Promise<Integration[]> => {
   try {
     const integrations = getStoredIntegrations();
+    // Convert stored date strings back to Date objects for proper type safety
     return integrations.map(integration => ({
       ...integration,
       createdAt: new Date(integration.createdAt),
@@ -61,9 +83,15 @@ export const getAllIntegrations = async (): Promise<Integration[]> => {
   }
 };
 
+/**
+ * Removes an integration from storage
+ * @param integrationId - Unique identifier of the integration to delete
+ * @returns Promise resolving to true if successful, false otherwise
+ */
 export const deleteIntegration = async (integrationId: string): Promise<boolean> => {
   try {
     const integrations = getStoredIntegrations();
+    // Filter out the integration to be deleted
     const filteredIntegrations = integrations.filter(i => i.id !== integrationId);
     
     localStorage.setItem('boostflow_integrations', JSON.stringify(filteredIntegrations));
@@ -76,10 +104,16 @@ export const deleteIntegration = async (integrationId: string): Promise<boolean>
   }
 };
 
+/**
+ * Creates a new integration with auto-generated metadata
+ * @param integration - Integration data without id and timestamps
+ * @returns Promise resolving to the created integration with generated fields
+ */
 export const createIntegration = async (integration: Omit<Integration, 'id' | 'createdAt' | 'updatedAt'>): Promise<Integration> => {
+  // Generate unique ID and timestamps for new integration
   const newIntegration: Integration = {
     ...integration,
-    id: `integration-${Date.now()}`,
+    id: `integration-${Date.now()}`, // Simple timestamp-based ID generation
     createdAt: new Date(),
     updatedAt: new Date()
   };
@@ -98,12 +132,18 @@ export const createIntegration = async (integration: Omit<Integration, 'id' | 'c
 };
 
 
+/**
+ * Retrieves a specific integration by ID with proper date type conversion
+ * @param integrationId - Unique identifier of the integration
+ * @returns Promise resolving to integration or null if not found
+ */
 export const getIntegration = async (integrationId: string): Promise<Integration | null> => {
   try {
     const integrations = getStoredIntegrations();
     const integration = integrations.find(i => i.id === integrationId);
     
     if (integration) {
+      // Convert stored date strings to Date objects
       return {
         ...integration,
         createdAt: new Date(integration.createdAt),
@@ -119,6 +159,13 @@ export const getIntegration = async (integrationId: string): Promise<Integration
   }
 };
 
+/**
+ * Updates an existing integration with new data
+ * @param integrationId - Unique identifier of the integration to update
+ * @param updates - Partial integration data to merge (excludes id and timestamps)
+ * @returns Promise resolving to the updated integration
+ * @throws Error if integration not found
+ */
 export const updateIntegration = async (integrationId: string, updates: Partial<Omit<Integration, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Integration> => {
   const integration = await getIntegration(integrationId);
   
@@ -126,10 +173,11 @@ export const updateIntegration = async (integrationId: string, updates: Partial<
     throw new Error(`Integration with ID ${integrationId} not found`);
   }
   
+  // Merge updates with existing data and update timestamp
   const updatedIntegration: Integration = {
     ...integration,
     ...updates,
-    updatedAt: new Date()
+    updatedAt: new Date() // Always update the modification timestamp
   };
   
   try {
@@ -149,6 +197,13 @@ export const updateIntegration = async (integrationId: string, updates: Partial<
   }
 };
 
+/**
+ * Synchronizes data from an external provider based on integration configuration
+ * Updates integration status and handles provider-specific sync logic
+ * @param integrationId - Unique identifier of the integration to sync
+ * @returns Promise resolving to sync result with success status and item count
+ * @throws Error if integration not found
+ */
 export const syncIntegration = async (integrationId: string): Promise<{ success: boolean; message: string; syncedItems?: number }> => {
 
   const integration = await getIntegration(integrationId);
@@ -158,13 +213,13 @@ export const syncIntegration = async (integrationId: string): Promise<{ success:
   }
   
   try {
- 
+    // Reset integration status before sync attempt
     await updateIntegration(integrationId, {
       status: 'active',
       errorMessage: undefined
     });
     
-
+    // Route to provider-specific sync implementation
     let syncResult;
     
     switch (integration.provider) {
@@ -180,6 +235,7 @@ export const syncIntegration = async (integrationId: string): Promise<{ success:
         throw new Error(`Unsupported provider: ${integration.provider}`);
     }
     
+    // Update integration with successful sync timestamp
     await updateIntegration(integrationId, {
       lastSyncAt: new Date(),
       status: 'active',
@@ -190,6 +246,7 @@ export const syncIntegration = async (integrationId: string): Promise<{ success:
     
     return syncResult;
   } catch (error) {
+    // Update integration status with error details
     await updateIntegration(integrationId, {
       status: 'error',
       errorMessage: error instanceof Error ? error.message : String(error)
@@ -205,6 +262,12 @@ export const syncIntegration = async (integrationId: string): Promise<{ success:
 };
 
 
+/**
+ * Synchronizes data from Google services (Calendar, Drive) based on configured scopes
+ * @param integration - Integration configuration with Google credentials and scopes
+ * @returns Promise resolving to sync result with item count
+ * @throws Error if access token missing or API calls fail
+ */
 async function syncWithGoogleServices(integration: Integration): Promise<{ success: boolean; message: string; syncedItems?: number }> {
   console.log(`Syncing with Google services for integration: ${integration.id}`);
   
@@ -216,6 +279,7 @@ async function syncWithGoogleServices(integration: Integration): Promise<{ succe
   let syncedItems = 0;
   
   try {
+    // Sync Google Calendar events if scope permits
     if (scopes.includes('calendar.readonly') || scopes.includes('calendar.events')) {
       console.log('Syncing Google Calendar events');
       
@@ -234,6 +298,7 @@ async function syncWithGoogleServices(integration: Integration): Promise<{ succe
       syncedItems += calendarData.items?.length || 0;
     }
     
+    // Sync Google Drive files if scope permits
     if (scopes.includes('drive.readonly') || scopes.includes('drive.file')) {
       console.log('Syncing Google Drive files');
       
@@ -265,6 +330,12 @@ async function syncWithGoogleServices(integration: Integration): Promise<{ succe
 
 
 
+/**
+ * Synchronizes data from GitHub repositories including repos, issues, PRs, and commits
+ * @param integration - Integration configuration with GitHub credentials and repository settings
+ * @returns Promise resolving to sync result with total synced items count
+ * @throws Error if API token missing or GitHub API calls fail
+ */
 async function syncWithGitHub(integration: Integration): Promise<{ success: boolean; message: string; syncedItems?: number }> {
   console.log(`Syncing with GitHub for integration: ${integration.id}`);
   
@@ -284,6 +355,7 @@ async function syncWithGitHub(integration: Integration): Promise<{ success: bool
       'User-Agent': 'BoostFlow-Integration'
     };
     
+    // Sync user repositories if requested
     if (dataTypes.includes('repositories')) {
       console.log('Syncing GitHub repositories');
       
@@ -297,8 +369,11 @@ async function syncWithGitHub(integration: Integration): Promise<{ success: bool
       syncedItems += reposData.length;
     }
     
+    // Sync repository-specific data (issues, PRs, commits) for configured repositories
+    // Limited to 5 repositories to prevent API rate limiting
     if (repositories.length > 0 && (dataTypes.includes('issues') || dataTypes.includes('pull_requests') || dataTypes.includes('commits'))) {
       for (const repo of repositories.slice(0, 5)) {
+        // Sync issues for the repository
         if (dataTypes.includes('issues')) {
           console.log(`Syncing issues for ${repo}`);
           
@@ -310,6 +385,7 @@ async function syncWithGitHub(integration: Integration): Promise<{ success: bool
           }
         }
         
+        // Sync pull requests for the repository
         if (dataTypes.includes('pull_requests')) {
           console.log(`Syncing pull requests for ${repo}`);
           
@@ -321,6 +397,7 @@ async function syncWithGitHub(integration: Integration): Promise<{ success: bool
           }
         }
         
+        // Sync recent commits for the repository
         if (dataTypes.includes('commits')) {
           console.log(`Syncing commits for ${repo}`);
           
@@ -345,6 +422,11 @@ async function syncWithGitHub(integration: Integration): Promise<{ success: bool
   }
 }
 
+/**
+ * Returns the list of supported integration providers with their metadata
+ * Used for displaying available integration options in the UI
+ * @returns Promise resolving to array of provider configurations
+ */
 export const getAvailableProviders = async (): Promise<Array<{ id: string; name: string; description: string; icon: string; }>> => {
   return [
     {

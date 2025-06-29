@@ -6,6 +6,10 @@ import { Workflow, getWorkflowsByProject, deleteWorkflow, executeWorkflow } from
 import { getUserProfile, UserProfile } from '@/lib/firebase/userProfileService';
 import { Play, Edit, Trash2, Plus, Clock, User, Calendar } from 'lucide-react';
 
+/**
+ * Props interface for the WorkflowList component
+ * Defines the required data and callbacks for workflow management
+ */
 interface WorkflowListProps {
   projectId: string;
   organizationId: string;
@@ -13,24 +17,39 @@ interface WorkflowListProps {
   onCreateWorkflow: () => void;
 }
 
+/**
+ * WorkflowList component displays and manages manual workflows for a project
+ * Provides functionality to view, run, edit, and delete workflows
+ * All workflows are manual execution only - no automatic triggers
+ */
 export default function WorkflowList({
   projectId,
   organizationId,
   currentUser,
   onCreateWorkflow
 }: WorkflowListProps) {
+  // Core workflow data and UI state
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Track individual workflow operations to show loading states
   const [deletingWorkflowId, setDeletingWorkflowId] = useState<string | null>(null);
   const [executingWorkflowId, setExecutingWorkflowId] = useState<string | null>(null);
+  
+  // Cache user display names to avoid repeated API calls
   const [userNames, setUserNames] = useState<Record<string, string>>({});
   const router = useRouter();
 
+  // Load workflows when component mounts or projectId changes
   useEffect(() => {
     loadWorkflows();
   }, [projectId]);
 
+  /**
+   * Loads workflows for the current project and resolves user display names
+   * Fetches user profiles in parallel to build a name cache for better UX
+   */
   const loadWorkflows = async () => {
     try {
       setIsLoading(true);
@@ -38,9 +57,11 @@ export default function WorkflowList({
       const projectWorkflows = await getWorkflowsByProject(projectId);
       setWorkflows(projectWorkflows);
       
+      // Extract unique user IDs to minimize API calls
       const uniqueUserIds = [...new Set(projectWorkflows.map(w => w.createdBy))];
       const userNameMap: Record<string, string> = {};
       
+      // Fetch all user profiles in parallel for better performance
       await Promise.all(
         uniqueUserIds.map(async (userId) => {
           try {
@@ -48,6 +69,7 @@ export default function WorkflowList({
             if (userProfile) {
               let displayName = userProfile.displayName;
               
+              // Fallback hierarchy: displayName -> firstName lastName -> firstName -> lastName -> email -> userId
               if (!displayName && userProfile.firstName && userProfile.lastName) {
                 displayName = `${userProfile.firstName} ${userProfile.lastName}`.trim();
               } else if (!displayName && userProfile.firstName) {
@@ -58,6 +80,7 @@ export default function WorkflowList({
               
               userNameMap[userId] = displayName || userProfile.email || userId;
             } else {
+              // Fallback to userId if profile not found
               userNameMap[userId] = userId;
             }
           } catch (error) {
@@ -76,18 +99,27 @@ export default function WorkflowList({
     }
   };
 
+  /**
+   * Navigates to the workflow editor page for the specified workflow
+   */
   const handleEditWorkflow = (workflowId: string) => {
     router.push(`/organizations/${organizationId}/projects/${projectId}/automation/workflows/${workflowId}`);
   };
 
+  /**
+   * Deletes a workflow after user confirmation
+   * Updates local state immediately for optimistic UI updates
+   */
   const handleDeleteWorkflow = async (workflowId: string) => {
+    // Require explicit user confirmation for destructive action
     if (!confirm('Are you sure you want to delete this workflow? This action cannot be undone.')) {
       return;
     }
 
     try {
-      setDeletingWorkflowId(workflowId);
+      setDeletingWorkflowId(workflowId); // Show loading state on specific workflow
       await deleteWorkflow(workflowId);
+      // Update UI by filtering out deleted workflow
       setWorkflows(workflows.filter(w => w.id !== workflowId));
     } catch (err) {
       console.error('Error deleting workflow:', err);
@@ -97,22 +129,29 @@ export default function WorkflowList({
     }
   };
 
+  /**
+   * Executes a workflow with proper validation and error handling
+   * Only actve workflows can be executed
+   */
   const handleRunWorkflow = async (workflow: Workflow) => {
+    // Prevent execution of disabled workflows
     if (!workflow.isActive) {
       setError('Cannot run disabled workflow. Please enable it first.');
       return;
     }
 
     try {
-      setExecutingWorkflowId(workflow.id);
+      setExecutingWorkflowId(workflow.id); // Show loading state for this specific workflow
       setError(null);
       
+      // Execute workflow with full context for proper authorization and data access
       const executionContext = await executeWorkflow(workflow.id, {
         projectId: projectId,
         currentUser: currentUser,
         organizationId: organizationId
       });
       
+      // Handle execution results with appropriate user feedback
       if (executionContext.status === 'completed') {
         alert('Workflow executed successfully!');
       } else if (executionContext.status === 'failed') {
@@ -126,6 +165,10 @@ export default function WorkflowList({
     }
   };
 
+  /**
+   * Formats dates in a consistent, user-friendly format
+   * Uses browser's locale-aware formatting for better internationalization
+   */
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat('en-US', {
       year: 'numeric',
@@ -136,6 +179,7 @@ export default function WorkflowList({
     }).format(date);
   };
 
+  // Show loading spinner while fetching workflows
   if (isLoading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -144,6 +188,7 @@ export default function WorkflowList({
     );
   }
 
+  // Show error state with retry option
   if (error) {
     return (
       <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">

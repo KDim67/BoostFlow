@@ -5,6 +5,7 @@ import Cropper from 'react-easy-crop';
 import { Button } from '@/components/ui/button';
 import { X, RotateCw, ZoomIn, ZoomOut } from 'lucide-react';
 
+// Represents a rectangular area with position and dimensions
 interface Area {
   x: number;
   y: number;
@@ -12,24 +13,38 @@ interface Area {
   height: number;
 }
 
+// Props for the ImageCropper component
 interface ImageCropperProps {
-  image: string;
-  onCropComplete: (croppedAreaPixels: Area) => void;
-  onCancel: () => void;
-  aspectRatio?: number;
-  cropShape?: 'rect' | 'round';
-  title?: string;
+  image: string; // Base64 or URL of the image to crop
+  onCropComplete: (croppedAreaPixels: Area) => void; // Callback when cropping is finished
+  onCancel: () => void; // Callback when user cancels cropping
+  aspectRatio?: number; // Desired aspect ratio (width/height), defaults to 1 (square)
+  cropShape?: 'rect' | 'round'; // Shape of the crop area
+  title?: string; // Modal title text
 }
 
+/**
+ * Creates an HTMLImageElement from a URL with cross-origin support
+ * @param url - Image URL or base64 data
+ * @returns Promise that resolves to loaded image element
+ */
 const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const image = new Image();
     image.addEventListener('load', () => resolve(image));
     image.addEventListener('error', (error) => reject(error));
+    // Enable cross-origin requests for external images
     image.setAttribute('crossOrigin', 'anonymous');
     image.src = url;
   });
 
+/**
+ * Crops and rotates an image using HTML5 Canvas
+ * @param imageSrc - Source image URL or base64
+ * @param pixelCrop - Crop area in pixels
+ * @param rotation - Rotation angle in degrees (default: 0)
+ * @returns Promise that resolves to cropped image as Blob
+ */
 const getCroppedImg = async (
   imageSrc: string,
   pixelCrop: Area,
@@ -43,33 +58,41 @@ const getCroppedImg = async (
     throw new Error('No 2d context');
   }
 
+  // Calculate safe area to accommodate rotation without clipping
   const maxSize = Math.max(image.width, image.height);
   const safeArea = 2 * ((maxSize / 2) * Math.sqrt(2));
 
+  // Set canvas to safe area size for rotation
   canvas.width = safeArea;
   canvas.height = safeArea;
 
+  // Apply rotation transformation around center
   ctx.translate(safeArea / 2, safeArea / 2);
   ctx.rotate((rotation * Math.PI) / 180);
   ctx.translate(-safeArea / 2, -safeArea / 2);
 
+  // Draw the rotated image centered in the safe area
   ctx.drawImage(
     image,
     safeArea / 2 - image.width * 0.5,
     safeArea / 2 - image.height * 0.5
   );
 
+  // Extract image data from the rotated canvas
   const data = ctx.getImageData(0, 0, safeArea, safeArea);
 
+  // Resize canvas to final crop dimensions
   canvas.width = pixelCrop.width;
   canvas.height = pixelCrop.height;
 
+  // Place the cropped portion on the final canvas
   ctx.putImageData(
     data,
     Math.round(0 - safeArea / 2 + image.width * 0.5 - pixelCrop.x),
     Math.round(0 - safeArea / 2 + image.height * 0.5 - pixelCrop.y)
   );
 
+  // Convert canvas to blob with JPEG compression (95% quality)
   return new Promise((resolve) => {
     canvas.toBlob((blob) => {
       if (blob) {
@@ -79,12 +102,16 @@ const getCroppedImg = async (
   });
 };
 
+/**
+ * ImageCropper component provides a modal interface for cropping images
+ * with zoom, rotation, and aspect ratio controls
+ */
 export default function ImageCropper({
   image,
   onCropComplete,
   onCancel,
-  aspectRatio = 1,
-  cropShape = 'round',
+  aspectRatio = 1, // Default to square crop
+  cropShape = 'round', // Default to circular crop
   title = 'Crop Image'
 }: ImageCropperProps) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -93,16 +120,20 @@ export default function ImageCropper({
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Callback fired when crop area changes - stores pixel coordinates for final processing
   const handleCropComplete = useCallback((croppedArea: Area, croppedAreaPixels: Area) => {
     setCroppedAreaPixels(croppedAreaPixels);
   }, []);
 
+  // Processes the final crop and calls parent callback
   const handleSave = async () => {
     if (!croppedAreaPixels) return;
     
     setIsProcessing(true);
     try {
+      // Generate the cropped image blob (not used here but validates the crop)
       const croppedImage = await getCroppedImg(image, croppedAreaPixels, rotation);
+      // Pass crop coordinates back to parent component
       onCropComplete(croppedAreaPixels);
     } catch (error) {
       console.error('Error cropping image:', error);
@@ -111,8 +142,10 @@ export default function ImageCropper({
     }
   };
 
+  // Zoom controls with bounds (100% to 300%)
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.1, 3));
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.1, 1));
+  // Rotate in 90-degree increments, wrapping at 360
   const handleRotate = () => setRotation(prev => (prev + 90) % 360);
 
   return (

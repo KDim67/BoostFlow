@@ -24,9 +24,6 @@ export async function DELETE(request: NextRequest) {
     if (!organizationId) {
       return NextResponse.json({ error: 'Organization ID is required' }, { status: 400 });
     }
-
-    // Check if user is platform admin (you may need to implement this check)
-    // For now, we'll assume any authenticated user can delete (adjust as needed)
     
     // Get organization data to check for logo before deletion
     const organization = await getOrganization(organizationId);

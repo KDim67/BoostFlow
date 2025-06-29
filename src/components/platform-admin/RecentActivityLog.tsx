@@ -4,6 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { getRecentActivityLogs, ActivityLogEntry } from '@/lib/services/platform/platformService';
 import { useRouter } from 'next/navigation';
 
+/**
+ * Formats a timestamp into a human-readable relative time string
+ * @param date - The date to format
+ * @returns A string representing the relative time (e.g., "2 hours ago", "just now")
+ */
+
 const formatTimestamp = (date: Date): string => {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -12,6 +18,7 @@ const formatTimestamp = (date: Date): string => {
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
 
+  // Return appropriate time format based on how long ago the activity occurred
   if (diffSecs < 60) {
     return 'just now';
   } else if (diffMins < 60) {
@@ -21,17 +28,25 @@ const formatTimestamp = (date: Date): string => {
   } else if (diffDays < 7) {
     return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
   } else {
+    // For activities older than a week, show the actual date
     return date.toLocaleDateString();
   }
 };
 
+/**
+ * Component that displays recent platform activity logs with severity indicators
+ * @param limit - Maximum number of activity logs to display (default: 5)
+ */
 const RecentActivityLog = ({ limit = 5 }: { limit?: number }) => {
   const router = useRouter();
+  // State for storing fetched activity log entries
   const [activityLogs, setActivityLogs] = useState<ActivityLogEntry[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  // CSV-formatted data for potential export functionality
   const [csvData, setCsvData] = useState<any[]>([]);
 
+  // Fetch activity logs when component mounts or limit changes
   useEffect(() => {
     const fetchActivityLogs = async () => {
       try {
@@ -40,6 +55,7 @@ const RecentActivityLog = ({ limit = 5 }: { limit?: number }) => {
         const logsData = await getRecentActivityLogs(limit);
         setActivityLogs(logsData);
         
+        // Transform data for CSV export format
         const csvFormattedData = logsData.map(log => ({
           Action: log.action,
           Description: log.description,
@@ -60,7 +76,11 @@ const RecentActivityLog = ({ limit = 5 }: { limit?: number }) => {
   }, [limit]);
   
 
-  
+  /**
+   * Converts severity level to display-friendly label
+   * @param severity - The severity level string
+   * @returns Capitalized severity label
+   */
   const getSeverityLabel = (severity: string) => {
     switch(severity) {
       case 'high':
@@ -73,7 +93,11 @@ const RecentActivityLog = ({ limit = 5 }: { limit?: number }) => {
         return severity;
     }
   };
-  
+  /**
+   * Returns appropriate SVG icon based on severity level
+   * @param severity - The severity level string
+   * @returns JSX element for the severity icon or null for unknown severity
+   */
   const getSeverityIcon = (severity: string) => {
     switch(severity) {
       case 'high':

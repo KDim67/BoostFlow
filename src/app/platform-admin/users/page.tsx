@@ -11,49 +11,64 @@ import { OrganizationWithDetails } from '@/lib/types/organization';
 
 import Badge from '@/components/Badge';
 
+// Extended user profile interface that includes organization names for display
 interface UserWithOrganizations extends UserProfile {
   organizations: string[];
 }
 
+/**
+ * Platform admin page for managing users across the entire platform.
+ * Provides functionality for viewing, editing, suspending, and deleting user accounts.
+ * Only accessible to super administrators.
+ */
 export default function UserManagementPage() {
-  const [users, setUsers] = useState<UserWithOrganizations[]>([]);
-  const [filteredUsers, setFilteredUsers] = useState<UserWithOrganizations[]>([]);
-  const [paginatedUsers, setPaginatedUsers] = useState<UserWithOrganizations[]>([]);
+  // Core user data states
+  const [users, setUsers] = useState<UserWithOrganizations[]>([]); // All users with their organizations
+  const [filteredUsers, setFilteredUsers] = useState<UserWithOrganizations[]>([]); // Users after applying filters
+  const [paginatedUsers, setPaginatedUsers] = useState<UserWithOrganizations[]>([]); // Current page of users
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [roleFilter, setRoleFilter] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
-  const [organizationFilter, setOrganizationFilter] = useState<string>('');
+  // Filter states for user search and filtering
+  const [searchQuery, setSearchQuery] = useState<string>(''); // Search by name or email
+  const [roleFilter, setRoleFilter] = useState<string>(''); // Filter by platform role
+  const [statusFilter, setStatusFilter] = useState<string>(''); // Filter by active/inactive/suspended
+  const [organizationFilter, setOrganizationFilter] = useState<string>(''); // Filter by organization
   
+  // Pagination states
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(5);
   
+  // Edit modal states
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null); // User being edited
   const [editedRole, setEditedRole] = useState<string>('');
   const [editedName, setEditedName] = useState<string>('');
   const [editedEmail, setEditedEmail] = useState<string>('');
   
+  // Suspension modal states
   const [suspendModalOpen, setSuspendModalOpen] = useState<boolean>(false);
   const [suspensionReason, setSuspensionReason] = useState<string>('');
   
+  // Delete confirmation modal states
   const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
   const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
 
+  // List of all organizations for filter dropdown
   const [allOrganizations, setAllOrganizations] = useState<string[]>([]);
 
   const { isSuperAdmin } = usePlatformAuth();
 
 
 
+  // Fetch all users and their associated organizations on component mount
   useEffect(() => {
     const fetchUsers = async () => {
       try {
         setLoading(true);
         const userProfiles = await getAllUserProfiles();
         
+        // Enrich each user profile with their organization names
         const usersWithOrganizations = await Promise.all(
           userProfiles.map(async (user) => {
             try {
@@ -63,6 +78,7 @@ export default function UserManagementPage() {
                 organizations: userOrgs.map(org => org.name)
               };
             } catch (error) {
+              // If fetching organizations fails, continue with empty array
               console.error(`Error fetching organizations for user ${user.uid}:`, error);
               return {
                 ...user,
@@ -72,6 +88,7 @@ export default function UserManagementPage() {
           })
         );
         
+        // Extract unique organization names for filter dropdown
         const orgSet = new Set<string>();
         usersWithOrganizations.forEach(user => {
           user.organizations.forEach(org => orgSet.add(org));
@@ -91,21 +108,29 @@ export default function UserManagementPage() {
     fetchUsers();
   }, []);
 
+  // Re-apply filters whenever filter criteria or user data changes
   useEffect(() => {
     applyFilters();
   }, [searchQuery, roleFilter, statusFilter, organizationFilter, users]);
 
+  // Re-paginate whenever filtered results or pagination settings change
   useEffect(() => {
     applyPagination();
   }, [filteredUsers, currentPage, pageSize]);
 
+  // Reset to first page when page size changes
   useEffect(() => {
     setCurrentPage(1);
   }, [pageSize]);
 
+  /**
+   * Apply all active filters to the user list.
+   * Filters are applied in sequence: search -> role -> status -> organization
+   */
   const applyFilters = () => {
     let result = [...users];
     
+    // Text search in display name and email
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(user => 
@@ -114,34 +139,43 @@ export default function UserManagementPage() {
       );
     }
     
+    // Filter by platform role
     if (roleFilter) {
       result = result.filter(user => user.platformRole === roleFilter);
     }
     
+    // Filter by user status (active/inactive/suspended)
     if (statusFilter) {
       if (statusFilter === 'active') {
+        // Active: not suspended and has recent activity
         result = result.filter(user => !user.suspended && !!user.updatedAt);
       } else if (statusFilter === 'inactive') {
+        // Inactive: not suspended but no recent activity
         result = result.filter(user => !user.suspended && !user.updatedAt);
       } else if (statusFilter === 'suspended') {
         result = result.filter(user => user.suspended);
       }
     }
     
+    // Filter by organization membership
     if (organizationFilter) {
       result = result.filter(user => user.organizations.includes(organizationFilter));
     }
     
     setFilteredUsers(result);
-    setCurrentPage(1);
+    setCurrentPage(1); // Reset to first page when filters change
   };
 
+  /**
+   * Extract the current page of users from filtered results
+   */
   const applyPagination = () => {
     const startIndex = (currentPage - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     setPaginatedUsers(filteredUsers.slice(startIndex, endIndex));
   };
 
+  // Calculate pagination metadata
   const totalPages = Math.ceil(filteredUsers.length / pageSize);
   const startIndex = (currentPage - 1) * pageSize + 1;
   const endIndex = Math.min(currentPage * pageSize, filteredUsers.length);
@@ -154,6 +188,9 @@ export default function UserManagementPage() {
     setPageSize(newPageSize);
   };
 
+  /**
+   * Initialize edit modal with selected user's current data
+   */
   const handleEditUser = (user: UserProfile) => {
     setCurrentUser(user);
     setEditedRole(user.platformRole || 'user');
@@ -162,25 +199,36 @@ export default function UserManagementPage() {
     setIsEditModalOpen(true);
   };
 
+  /**
+   * Open suspension modal for the selected user
+   */
   const handleSuspendUser = async (user: UserProfile) => {
     setCurrentUser(user);
     setSuspendModalOpen(true);
   };
 
+  /**
+   * Open delete confirmation modal for the selected user
+   */
   const handleDeleteUser = async (user: UserProfile) => {
     setUserToDelete(user);
     setDeleteModalOpen(true);
   };
 
+  /**
+   * Permanently delete a user profile from the system.
+   * Updates local state to reflect the deletion immediately.
+   */
   const handleConfirmDelete = async () => {
     if (!userToDelete) return;
     
     try {
       await deleteUserProfile(userToDelete.uid);
       
+      // Remove user from local state
       const updatedUsers = users.filter(u => u.uid !== userToDelete.uid);
       setUsers(updatedUsers);
-      applyFilters();
+      applyFilters(); // Refresh filtered view
       setDeleteModalOpen(false);
       setUserToDelete(null);
     } catch (err) {
@@ -189,6 +237,11 @@ export default function UserManagementPage() {
     }
   };
 
+  /**
+   * Toggle user suspension status.
+   * When suspending: adds reason and timestamp
+   * When unsuspending: clears suspension data
+   */
   const handleConfirmSuspension = async () => {
     if (!currentUser) return;
     
@@ -198,16 +251,19 @@ export default function UserManagementPage() {
         updatedAt: new Date()
       };
       
+      // Add suspension metadata when suspending
       if (!currentUser.suspended) {
         updateData.suspensionReason = suspensionReason || 'No reason provided';
         updateData.suspendedAt = new Date();
       } else {
+        // Clear suspension metadata when unsuspending
         updateData.suspensionReason = null;
         updateData.suspendedAt = null;
       }
       
       await updateUserProfile(currentUser.uid, updateData);
       
+      // Update local state to reflect changes
       const updatedUsers = users.map(u => {
         if (u.uid === currentUser.uid) {
           return { ...u, ...updateData };
@@ -216,7 +272,7 @@ export default function UserManagementPage() {
       });
       
       setUsers(updatedUsers);
-      applyFilters();
+      applyFilters(); // Refresh filtered view
       setSuspendModalOpen(false);
       setSuspensionReason('');
     } catch (err) {
@@ -225,9 +281,14 @@ export default function UserManagementPage() {
     }
   };
 
+  /**
+   * Format timestamp into human-readable "time ago" format.
+   * Handles both Firestore timestamps and regular Date objects.
+   */
   const formatLastActive = (timestamp: any) => {
     if (!timestamp) return 'Never';
     
+    // Handle Firestore timestamp or regular Date
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -235,6 +296,7 @@ export default function UserManagementPage() {
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
     
+    // Return appropriate time format based on recency
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins} minutes ago`;
     if (diffHours < 24) return `${diffHours} hours ago`;
@@ -243,6 +305,10 @@ export default function UserManagementPage() {
     return date.toLocaleDateString();
   };
 
+  /**
+   * Save changes made to user profile in edit modal.
+   * Updates both remote database and local state.
+   */
   const handleSaveUserChanges = async () => {
     if (!currentUser) return;
     
@@ -254,6 +320,7 @@ export default function UserManagementPage() {
         updatedAt: new Date()
       });
       
+      // Update local state to reflect changes immediately
       const updatedUsers = users.map(u => {
         if (u.uid === currentUser.uid) {
           return { 
@@ -268,7 +335,7 @@ export default function UserManagementPage() {
       });
       
       setUsers(updatedUsers);
-      applyFilters();
+      applyFilters(); // Refresh filtered view
       setIsEditModalOpen(false);
     } catch (err) {
       console.error('Error updating user:', err);

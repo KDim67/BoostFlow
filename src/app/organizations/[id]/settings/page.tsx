@@ -9,14 +9,33 @@ import { Organization, OrganizationMembership } from '@/lib/types/organization';
 import { useFileUpload } from '@/lib/hooks/useFileUpload';
 import ImageCropper, { getCroppedImg } from '@/components/ui/ImageCropper';
 
+/**
+ * OrganizationSettings Component
+ * 
+ * Provides a comprehensive settings interface for organization owners to:
+ * - Update organization profile information (name, description, logo, website, email)
+ * - Transfer ownership to another member
+ * - Delete the organization (with confirmation)
+ * - Manage organization branding with logo upload and cropping
+ * 
+ * Security: Only organization owners can access these settings
+ * Features: Real-time validation, image cropping, confirmation modals for destructive actions
+ */
+
 export default function OrganizationSettings() {
   const { id } = useParams();
+  
+  // Core organization data and UI state
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  
+  // Tab navigation state
   const [activeTab, setActiveTab] = useState('profile');
+  
+  // Form data for organization profile updates
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -25,27 +44,52 @@ export default function OrganizationSettings() {
     email: '',
     notificationSettings: {}
   });
+  
+  // Organization members data for ownership transfer
   const [members, setMembers] = useState<OrganizationMembership[]>([]);
+  
+  // Ownership transfer modal state
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [selectedNewOwner, setSelectedNewOwner] = useState<string>('');
   const [isTransferring, setIsTransferring] = useState(false);
+  
+  // Organization deletion modal state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  
+  // Image upload and cropping state
   const [showImageCropper, setShowImageCropper] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  
+  // External hooks and services
   const { user } = useAuth();
   const { uploading, uploadOrganizationLogo } = useFileUpload();
+  
+  // Extract organization ID from URL params (handle both string and array cases)
   const organizationId = Array.isArray(id) ? id[0] : id;
 
+  /**
+   * Main data fetching effect
+   * 
+   * Handles:
+   * 1. Permission verification (owner-only access)
+   * 2. Organization data loading
+   * 3. Form data initialization
+   * 4. Members data loading for ownership transfer
+   * 
+   * Security: Validates user has 'owner' permission before allowing access
+   */
   useEffect(() => {
     const fetchSettingsData = async () => {
+      // Early return if user not authenticated or no organization ID
       if (!user || !organizationId) return;
       
       try {
         setIsLoading(true);
         setError(null);
         
+        // Only organization owners can access settings
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'owner');
         
         if (!permission) {
@@ -54,9 +98,11 @@ export default function OrganizationSettings() {
           return;
         }
         
+        // Fetch organization data and populate form
         const orgData = await getOrganization(organizationId);
         setOrganization(orgData);
         if (orgData) {
+          // Initialize form data with current organization values
           setFormData({
             name: orgData.name || '',
             description: orgData.description || '',
@@ -67,6 +113,7 @@ export default function OrganizationSettings() {
           });
         }
 
+        // Load organization members for ownership transfer functionality
         const membersData = await getOrganizationMembers(organizationId);
         setMembers(membersData);
       } catch (error) {
@@ -80,6 +127,10 @@ export default function OrganizationSettings() {
     fetchSettingsData();
   }, [user, organizationId]);
 
+  /**
+   * Handles form input changes for basic organization fields
+   * Supports text inputs, textareas, selects, and checkboxes
+   */
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target as HTMLInputElement;
     
@@ -89,7 +140,10 @@ export default function OrganizationSettings() {
     }));
   };
 
-
+  /**
+   * Handles notification settings changes
+   * Updates nested notification settings object while preserving other settings
+   */
   const handleNotificationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, checked } = e.target;
 
@@ -102,6 +156,10 @@ export default function OrganizationSettings() {
     }));
   };
 
+  /**
+   * Handles logo file selection and initiates the cropping workflow
+   * Creates a preview URL and opens the image cropper modal
+   */
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -112,6 +170,16 @@ export default function OrganizationSettings() {
     setShowImageCropper(true);
   };
 
+  /**
+   * Handles the completion of image cropping
+   * 
+   * Workflow:
+   * 1. Converts cropped area to blob
+   * 2. Creates a new File object
+   * 3. Uploads to storage
+   * 4. Updates local state and dispatches global event
+   * 5. Cleans up temporary resources
+   */
   const handleCropComplete = async (croppedAreaPixels: any) => {
     if (!selectedImage || !organizationId) return;
 
@@ -127,10 +195,12 @@ export default function OrganizationSettings() {
       // Upload the cropped image
       const result = await uploadOrganizationLogo(croppedFile, organizationId, {
         onSuccess: (result) => {
+          // Update form data with new logo URL
           setFormData(prev => ({
             ...prev,
             logoUrl: result.url
           }));
+          // Update organization state
           if (organization) {
             setOrganization({
               ...organization,
@@ -163,6 +233,10 @@ export default function OrganizationSettings() {
     }
   };
 
+  /**
+   * Handles cancellation of image cropping
+   * Cleans up temporary preview URL and resets state
+   */
   const handleCropCancel = () => {
     setShowImageCropper(false);
     if (selectedImage) {
@@ -202,11 +276,13 @@ export default function OrganizationSettings() {
         }));
       }
 
+      // Update organization data in database
       await updateOrganization(organizationId, {
         name: formData.name,
         description: formData.description
       });
 
+      // Update local organization state to reflect changes immediately
       if (organization) {
         setOrganization({
           ...organization,
@@ -216,8 +292,8 @@ export default function OrganizationSettings() {
         });
       }
 
+      // Show success message and auto-hide after 5 seconds
       setSuccessMessage('Organization settings saved successfully!');
-
       setTimeout(() => {
         setSuccessMessage(null);
       }, 5000);
@@ -229,6 +305,16 @@ export default function OrganizationSettings() {
     }
   };
 
+  /**
+   * Handles ownership transfer to another organization member
+   * 
+   * Critical security operation that:
+   * 1. Validates both current owner and new owner memberships exist
+   * 2. Demotes current owner to admin role
+   * 3. Promotes selected member to owner role
+   * 4. Updates local state to reflect changes
+   * 
+   */
   const handleTransferOwnership = async () => {
     if (!selectedNewOwner || !organizationId || !user) return;
 
@@ -236,16 +322,20 @@ export default function OrganizationSettings() {
     setError(null);
 
     try {
+      // Find current owner and new owner memberships
       const currentOwnerMembership = members.find(m => m.userId === user.uid && m.role === 'owner');
       const newOwnerMembership = members.find(m => m.userId === selectedNewOwner);
 
+      // Validate both memberships exist before proceeding
       if (!currentOwnerMembership || !newOwnerMembership) {
         throw new Error('Invalid ownership transfer');
       }
 
+      // Perform the role swap, current owner becomes admin, selected member becomes owner
       await updateOrganizationMembership(currentOwnerMembership.id, { role: 'admin' });
       await updateOrganizationMembership(newOwnerMembership.id, { role: 'owner' });
 
+      // Update local members state to reflect the role changes
       const updatedMembers = members.map(member => {
         if (member.id === currentOwnerMembership.id) {
           return { ...member, role: 'admin' as const };
@@ -272,6 +362,10 @@ export default function OrganizationSettings() {
     }
   };
 
+  /**
+   * Handles permanent deletion of the organization
+   * 
+   */
   const handleDeleteOrganization = async () => {
     if (!user || !organizationId || !organization) return;
     if (deleteConfirmText !== organization.name) {
@@ -301,6 +395,7 @@ export default function OrganizationSettings() {
       setSuccessMessage('Organization deleted successfully!');
       setShowDeleteModal(false);
 
+      // Redirect to organizations list after brief delay
       setTimeout(() => {
         window.location.href = '/organizations';
       }, 2000);
@@ -312,6 +407,14 @@ export default function OrganizationSettings() {
     }
   };
 
+  /**
+   * Filters organization members to find those eligible for ownership transfer
+   * 
+   * Criteria:
+   * - Must have 'active' status
+   * - Cannot be current owner
+   * - Cannot be the current user (can't transfer to self)
+   */
   const getEligibleMembers = () => {
     return members.filter(member =>
       member.status === 'active' &&
@@ -320,6 +423,10 @@ export default function OrganizationSettings() {
     );
   };
 
+  /**
+   * Gets a user-friendly display name for a member
+   * Falls back through displayName -> email -> 'Unknown User'
+   */
   const getDisplayName = (member: OrganizationMembership) => {
     return member.userProfile?.displayName || member.userProfile?.email || 'Unknown User';
   };

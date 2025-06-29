@@ -10,6 +10,10 @@ import PersonalIntegrations from '@/components/dashboard/PersonalIntegrations';
 import { useFileUpload } from '@/lib/hooks/useFileUpload';
 import ImageCropper, { getCroppedImg } from '@/components/ui/ImageCropper';
 
+/**
+ * Interface defining the structure of form data for user settings
+ * Includes personal information, security settings, and preferences
+ */
 interface SettingsFormData {
   displayName: string;
   email: string;
@@ -23,15 +27,28 @@ interface SettingsFormData {
   profilePicture: string;
 }
 
+/**
+ * Main settings page component that provides user account management functionality
+ * Includes tabs for account info, security settings, notifications, and integrations
+ */
 export default function SettingsPage() {
+  // Authentication state and navigation
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('account');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  
+  // UI state management
+  const [activeTab, setActiveTab] = useState('account'); // Currently active settings tab
+  const [loading, setLoading] = useState(true); // Initial page loading state
+  const [saving, setSaving] = useState(false); // General saving state for forms
+  
+  // User data state
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // File upload functionality
+  const fileInputRef = useRef<HTMLInputElement>(null); // Reference to hidden file input
   const { uploading, uploadProfilePicture } = useFileUpload();
+  
+  // Form data state
   const [formData, setFormData] = useState<SettingsFormData>({
     displayName: '',
     email: '',
@@ -44,28 +61,43 @@ export default function SettingsPage() {
     websiteNotifications: true,
     profilePicture: ''
   });
+  
+  // UI feedback and loading states
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [sendingVerification, setSendingVerification] = useState(false);
   const [changingEmail, setChangingEmail] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
+  
+  // Image cropping functionality
   const [showImageCropper, setShowImageCropper] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null); // Temporary image URL for cropping
 
+  /**
+   * Effect hook to handle authentication state and load user profile data
+   * Redirects to login if user is not authenticated, otherwise fetches profile
+   */
   useEffect(() => {
+    // Redirect to login if authentication is complete but no user found
     if (!authLoading && !user) {
       router.push('/login');
       return;
     }
 
+    // Wait for authentication to complete before proceeding
     if (!user) {
       return; // Still loading, don't fetch profile yet
     }
 
+    /**
+     * Fetches user profile data from the database and populates form fields
+     * Handles both Firebase Auth user data and custom profile data
+     */
     const fetchUserProfile = async () => {
       try {
         const profile = await getUserProfile(user.uid);
         if (profile) {
           setUserProfile(profile);
+          // Populate form with existing profile data, using fallbacks for missing fields
           setFormData(prev => ({
             ...prev,
             displayName: profile.displayName || '',
@@ -87,37 +119,54 @@ export default function SettingsPage() {
     fetchUserProfile();
   }, [user, router]);
 
+  /**
+   * Generic handler for updating form field values
+   * @param field - The form field to update
+   * @param value - The new value (string or boolean)
+   */
   const handleInputChange = (field: keyof SettingsFormData, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  /**
+   * Handles profile picture file selection and initiates the cropping process
+   * Creates a temporary object URL for the image cropper component
+   */
   const handleProfilePictureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Create object URL for the selected image
+    // Create object URL for the selected image to display in cropper
     const imageUrl = URL.createObjectURL(file);
     setSelectedImage(imageUrl);
     setShowImageCropper(true);
 
-    // Reset file input
+    // Reset file input to allow selecting the same file again if needed
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
+  /**
+   * Handles the completion of image cropping and uploads the processed image
+   * Converts cropped area to blob, uploads to storage, and updates user profile
+   * @param croppedAreaPixels - Pixel coordinates of the cropped area
+   */
   const handleCropComplete = async (croppedAreaPixels: any) => {
     try {
       if (!selectedImage) return;
 
+      // Convert the cropped area to a blob for upload
       const croppedImageBlob = await getCroppedImg(selectedImage, croppedAreaPixels);
       const croppedFile = new File([croppedImageBlob], 'profile-picture.jpg', {
         type: 'image/jpeg',
         lastModified: Date.now(),
       });
 
+      // Upload the cropped image with success/error callbacks
       const result = await uploadProfilePicture(croppedFile, {
         onSuccess: async (result) => {
+          // Update local form state with new image URL
           setFormData(prev => ({ ...prev, profilePicture: result.url }));
 
           // Update the user profile in the database
@@ -144,27 +193,37 @@ export default function SettingsPage() {
         },
       });
 
+      // Clean up cropper state and temporary image URL
       setShowImageCropper(false);
       setSelectedImage(null);
-      URL.revokeObjectURL(selectedImage);
+      URL.revokeObjectURL(selectedImage); // Prevent memory leaks
     } catch (error) {
       console.error('Crop error:', error);
       setMessage({ type: 'error', text: 'Failed to process image' });
     }
   };
 
+  /**
+   * Handles cancellation of the image cropping process
+   * Cleans up temporary image URL and resets cropper state
+   */
   const handleCropCancel = () => {
     setShowImageCropper(false);
     if (selectedImage) {
-      URL.revokeObjectURL(selectedImage);
+      URL.revokeObjectURL(selectedImage); // Clean up memory
       setSelectedImage(null);
     }
   };
 
+  /**
+   * Removes the user's profile picture from both storage and database
+   * Makes API call to delete file from MinIO storage and updates profile
+   */
   const handleRemoveProfilePicture = async () => {
     if (!user) return;
 
     try {
+      // Optimistically update UI first
       setFormData(prev => ({ ...prev, profilePicture: '' }));
 
       // Call API to remove profile picture and delete file from MinIO
@@ -192,10 +251,10 @@ export default function SettingsPage() {
     }
   };
 
-
-
-
-
+  /**
+   * Handles saving account information (name, display name, profile picture)
+   * Updates both Firebase Auth profile and custom user profile in database
+   */
   const handleAccountSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -204,10 +263,12 @@ export default function SettingsPage() {
     setMessage(null);
 
     try {
+      // Update Firebase Auth profile with display name
       await updateProfile(user, {
         displayName: formData.displayName
       });
 
+      // Update custom user profile in database with additional fields
       await updateUserProfile(user.uid, {
         displayName: formData.displayName,
         firstName: formData.firstName,
@@ -220,19 +281,25 @@ export default function SettingsPage() {
       console.error('Error updating account:', error);
       setMessage({ type: 'error', text: 'Failed to update account information' });
     } finally {
-      setPasswordLoading(false);
+      setSaving(false); // Fixed: should be setSaving, not setPasswordLoading
     }
   };
 
+  /**
+   * Handles password change with validation and error handling
+   * Validates password match and length before attempting update
+   */
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
 
+    // Client-side validation: ensure passwords match
     if (formData.newPassword !== formData.confirmPassword) {
       setMessage({ type: 'error', text: 'New passwords do not match' });
       return;
     }
 
+    // Client-side validation: enforce minimum password length
     if (formData.newPassword.length < 6) {
       setMessage({ type: 'error', text: 'Password must be at least 6 characters long' });
       return;
@@ -242,16 +309,21 @@ export default function SettingsPage() {
     setMessage(null);
 
     try {
+      // Update password in Firebase Auth
       await updatePassword(user, formData.newPassword);
+      
+      // Clear password fields after successful update
       setFormData(prev => ({
         ...prev,
         currentPassword: '',
         newPassword: '',
         confirmPassword: ''
       }));
+      
       setMessage({ type: 'success', text: 'Password updated successfully' });
     } catch (error: any) {
       console.error('Error updating password:', error);
+      // Handle specific Firebase Auth errors with user-friendly messages
       if (error.code === 'auth/requires-recent-login') {
         setMessage({ type: 'error', text: 'Please log out and log back in before changing your password' });
       } else {
@@ -262,6 +334,10 @@ export default function SettingsPage() {
     }
   };
 
+  /**
+   * Handles saving notification preferences to user profile
+   * Updates nested settings object in the database
+   */
   const handleNotificationsSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -270,6 +346,7 @@ export default function SettingsPage() {
     setMessage(null);
 
     try {
+      // Update nested settings structure in user profile
       await updateUserProfile(user.uid, {
         settings: {
           notifications: {
@@ -286,6 +363,10 @@ export default function SettingsPage() {
     }
   };
 
+  /**
+   * Sends email verification to the current user's email address
+   * Used when user's email is not yet verified
+   */
   const handleSendVerificationEmail = async () => {
     if (!user) return;
 
@@ -303,8 +384,15 @@ export default function SettingsPage() {
     }
   };
 
+  /**
+   * Handles email address change with reauthentication and verification
+   * Requires current password and sends verification email to new address
+   * Email is only updated after user clicks verification link
+   */
   const handleEmailChange = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate required fields are present
     if (!user || !formData.newEmail || !formData.currentPassword) {
       setMessage({ type: 'error', text: 'Please fill in all required fields' });
       return;
@@ -321,11 +409,12 @@ export default function SettingsPage() {
       // Use verifyBeforeUpdateEmail to send verification email first
       const actionCodeSettings = {
         url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://boostflow.me'}/auth-handler/auth/action`,
-        handleCodeInApp: true,
+        handleCodeInApp: true, // Handle verification in the app
       };
       
       await verifyBeforeUpdateEmail(user, formData.newEmail, actionCodeSettings);
 
+      // Clear form fields after successful verification email send
       setFormData(prev => ({
         ...prev,
         newEmail: '',
@@ -338,6 +427,8 @@ export default function SettingsPage() {
       });
     } catch (error: any) {
       console.error('Error updating email:', error);
+      
+      // Handle specific Firebase Auth errors with user-friendly messages
       if (error.code === 'auth/wrong-password') {
         setMessage({ type: 'error', text: 'Current password is incorrect' });
       } else if (error.code === 'auth/email-already-in-use') {

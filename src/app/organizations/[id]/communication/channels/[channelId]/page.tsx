@@ -19,28 +19,50 @@ import {
 } from '@/lib/services/collaboration/communicationService';
 import { formatDistanceToNow } from 'date-fns';
 
+/**
+ * ChannelPage Component - Real-time chat interface for organization channels
+ * 
+ * Provides a complete messaging experience with:
+ * - Real-time message display and sending
+ * - Channel management (edit, delete for creators)
+ * - Member management for private channels
+ * - Permission-based access control
+ * - Responsive UI with typing indicators and scroll management
+ */
 export default function ChannelPage() {
+  // Extract URL parameters for organization and channel identification
   const { id, channelId } = useParams();
   const router = useRouter();
   const { user } = useAuth();
+  
+  // Normalize URL parameters (handle both string and array formats from Next.js)
   const organizationId = Array.isArray(id) ? id[0] : id;
   const channelIdStr = Array.isArray(channelId) ? channelId[0] : channelId;
   
+  // Core channel data state
   const [channel, setChannel] = useState<Channel | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [members, setMembers] = useState<any[]>([]);
+  
+  // User profile caching for message display optimization
   const [userProfiles, setUserProfiles] = useState<{[key: string]: any}>({});
   const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
+  
+  // UI state management
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Message input and sending state
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   
+  // Modal and user management state (for private channels)
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [organizationMembers, setOrganizationMembers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddingUser, setIsAddingUser] = useState(false);
   
+  // Channel management UI state (only available to channel creators)
   const [showDropdown, setShowDropdown] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -49,26 +71,40 @@ export default function ChannelPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   
+  // Chat UX enhancement state
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  // DOM references for scroll management and UI interactions
+  const messagesEndRef = useRef<HTMLDivElement>(null); // Auto-scroll target
+  const textareaRef = useRef<HTMLTextAreaElement>(null); // Message input auto-resize
+  const messagesContainerRef = useRef<HTMLDivElement>(null); // Scroll detection
+  const dropdownRef = useRef<HTMLDivElement>(null); // Click-outside detection
 
+  /**
+   * Smoothly scrolls to the bottom of the message list
+   * Used when new messages arrive or user clicks scroll button
+   */
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     setShowScrollToBottom(false);
   };
 
+  /**
+   * Generates user initials for avatar display when profile picture is unavailable
+   * Priority: displayName (first + last initial) > displayName (first initial) > email (first char) > 'U'
+   * 
+   * @param user - User object with displayName and/or email
+   * @returns String of 1-2 uppercase characters
+   */
   const getInitials = (user: any) => {
     const displayName = user?.displayName;
     const email = user?.email;
     
     if (displayName) {
       const names = displayName.trim().split(' ');
+      // Use first and last name initials if available
       if (names.length >= 2) {
         return (names[0][0] + names[names.length - 1][0]).toUpperCase();
       }
@@ -79,9 +115,15 @@ export default function ChannelPage() {
       return email[0].toUpperCase();
     }
     
+    // Fallback for users with no displayName or email
     return 'U';
   };
   
+  /**
+   * Handles scroll events in the messages container
+   * Shows/hides the "scroll to bottom" button based on scroll position
+   * Button appears when user scrolls up more than 100px from bottom
+   */
   const handleScroll = () => {
     if (messagesContainerRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
@@ -90,10 +132,12 @@ export default function ChannelPage() {
     }
   };
 
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
   
+  // Handle click-outside behavior for dropdown menu
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -105,31 +149,45 @@ export default function ChannelPage() {
       document.addEventListener('mousedown', handleClickOutside);
     }
     
+    // Cleanup event listener to prevent memory leaks
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showDropdown]);
 
+  /**
+   * Main data fetching effect - loads channel data, messages, and user profiles
+   * Implements comprehensive permission checking and error handling
+   * 
+   * Security checks:
+   * 1. Organization viewer permission
+   * 2. Channel existence
+   * 3. Private channel membership
+   */
   useEffect(() => {
     const fetchChannelData = async () => {
+      // Early return if required data is missing
       if (!user || !organizationId || !channelIdStr) return;
       
       try {
         setIsLoading(true);
         setError(null);
         
+        // Check organization-level permissions first
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'viewer');
         if (!permission) {
           setError('You do not have permission to view this organization.');
           return;
         }
         
+        // Verify channel exists
         const channelData = await getChannel(channelIdStr);
         if (!channelData) {
           setError('Channel not found.');
           return;
         }
         
+        // Check private channel access permissions
         if (channelData.type === 'private' && !channelData.memberIds?.includes(user.uid)) {
           setError('You do not have access to this private channel.');
           return;
@@ -137,6 +195,7 @@ export default function ChannelPage() {
         
         setChannel(channelData);
         
+        // Parallel fetch of messages and members for better performance
         const [messagesData, membersData] = await Promise.all([
           getChannelMessages(channelIdStr),
           getChannelMembers(channelIdStr)
@@ -147,26 +206,31 @@ export default function ChannelPage() {
         
         // Fetch user profiles for message authors
         const uniqueAuthorIds = [...new Set(messagesData.map(msg => msg.author))];
+        // Fetch profiles with error handling for individual failures
         const profilePromises = uniqueAuthorIds.map(async (authorId) => {
           try {
             const profile = await getUserProfile(authorId);
             return { [authorId]: profile };
           } catch (error) {
             console.error(`Error fetching profile for user ${authorId}:`, error);
+            // Return null profile to prevent UI breaks
             return { [authorId]: null };
           }
         });
         
         const profileResults = await Promise.all(profilePromises);
+        // Merge all profile objects into a single map for efficient lookups
         const profilesMap = profileResults.reduce((acc, curr) => ({ ...acc, ...curr }), {});
         setUserProfiles(profilesMap);
         
-        // Fetch current user's profile
+        // Fetch current user's profile for consistent display
         const currentProfile = await getUserProfile(user.uid);
         setCurrentUserProfile(currentProfile);
         
+        // Load organization members for private channel management (creator only)
         if (channelData.type === 'private' && channelData.createdBy === user.uid) {
           const orgMembers = await getOrganizationMembers(organizationId);
+          // Filter to show only active members not already in the channel
           setOrganizationMembers(orgMembers.filter(member => 
             member.status === 'active' && !channelData.memberIds.includes(member.userId)
           ));
@@ -182,7 +246,13 @@ export default function ChannelPage() {
     fetchChannelData();
   }, [user, organizationId, channelIdStr]);
 
+  /**
+   * Handles message sending with optimistic UI updates
+   * Validates input, sends message, and updates local state immediately
+   * Includes error handling and UI cleanup
+   */
   const handleSendMessage = async () => {
+    // Validate required data and non-empty message
     if (!user || !channelIdStr || !newMessage.trim()) return;
     
     try {
@@ -196,9 +266,11 @@ export default function ChannelPage() {
       };
       
       const sentMessage = await sendMessage(messageData);
+      // Optimistically update local messages for immediate UI feedback
       setMessages(prev => [...prev, sentMessage]);
       setNewMessage('');
       
+      // Reset textarea height after sending
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
       }
@@ -210,6 +282,10 @@ export default function ChannelPage() {
     }
   };
 
+  /**
+   * Handles keyboard shortcuts in message input
+   * Enter: Send message, Shift+Enter: New line
+   */
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -217,21 +293,32 @@ export default function ChannelPage() {
     }
   };
 
+  /**
+   * Handles textarea input changes with auto-resize and typing indicator
+   * Features:
+   * - Auto-resize textarea based on content (max 120px height)
+   * - Typing indicator with 1-second timeout
+   * - Debounced typing state management
+   */
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNewMessage(e.target.value);
     
+    // Auto-resize textarea based on content
     const textarea = e.target;
     textarea.style.height = 'auto';
     textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
     
+    // Show typing indicator
     if (!isTyping) {
       setIsTyping(true);
     }
     
+    // Clear existing timeout to debounce typing indicator
     if (typingTimeout) {
       clearTimeout(typingTimeout);
     }
     
+    // Hide typing indicator after 1 second of inactivity
     const timeout = setTimeout(() => {
       setIsTyping(false);
     }, 1000);
@@ -239,7 +326,15 @@ export default function ChannelPage() {
     setTypingTimeout(timeout);
   };
   
+  /**
+   * Adds a user to the current private channel
+   * Updates local state optimistically and refreshes member list
+   * Only available to channel creators
+   * 
+   * @param userId - ID of the user to add to the channel
+   */
   const handleAddUser = async (userId: string) => {
+    // Prevent duplicate requests and validate required data
     if (!channelIdStr || isAddingUser) return;
     
     try {
@@ -247,11 +342,14 @@ export default function ChannelPage() {
       const success = await addChannelMember(channelIdStr, userId, 'member');
       
       if (success) {
+        // Refresh member list from server
         const updatedMembers = await getChannelMembers(channelIdStr);
         setMembers(updatedMembers);
         
+        // Remove user from available organization members list
         setOrganizationMembers(prev => prev.filter(member => member.userId !== userId));
         
+        // Update local channel state with new member
         if (channel) {
           setChannel({
             ...channel,
@@ -267,7 +365,13 @@ export default function ChannelPage() {
     }
   };
   
+  /**
+   * Updates channel name and description
+   * Validates input, updates server, and refreshes local state
+   * Only available to channel creators
+   */
   const handleEditChannel = async () => {
+    // Validate required data and prevent duplicate requests
     if (!channelIdStr || !editChannelName.trim() || isUpdating) return;
     
     try {
@@ -278,6 +382,7 @@ export default function ChannelPage() {
       });
       
       if (success && channel) {
+        // Update local channel state immediately
         setChannel({
           ...channel,
           name: editChannelName.trim(),
@@ -296,7 +401,13 @@ export default function ChannelPage() {
     }
   };
   
+  /**
+   * Permanently deletes the channel and all its messages
+   * Redirects to communication hub on success
+   * Only available to channel creators
+   */
   const handleDeleteChannel = async () => {
+    // Prevent duplicate requests
     if (!channelIdStr || isDeleting) return;
     
     try {
@@ -304,6 +415,7 @@ export default function ChannelPage() {
       const success = await deleteChannel(channelIdStr);
       
       if (success) {
+        // Redirect to communication hub after successful deletion
         router.push(`/organizations/${organizationId}/communication`);
       } else {
         setError('Failed to delete channel');
@@ -317,6 +429,10 @@ export default function ChannelPage() {
     }
   };
   
+  /**
+   * Opens the edit channel modal with current channel data pre-filled
+   * Closes the dropdown menu when opening
+   */
   const openEditModal = () => {
     if (channel) {
       setEditChannelName(channel.name);
@@ -326,11 +442,24 @@ export default function ChannelPage() {
     }
   };
   
+  /**
+   * Filters organization members based on search query
+   * Searches both display name and email fields (case-insensitive)
+   */
   const filteredOrganizationMembers = organizationMembers.filter(member =>
     member.userProfile?.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     member.userProfile?.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
   
+  /**
+   * Formats message timestamps based on age
+   * - < 24 hours: Time only (e.g., "2:30 PM")
+   * - < 7 days: Weekday + time (e.g., "Mon 2:30 PM")
+   * - > 7 days: Date + time (e.g., "Jan 15 2:30 PM")
+   * 
+   * @param date - Message creation date
+   * @returns Formatted time string
+   */
   const formatMessageTime = (date: Date) => {
     const now = new Date();
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);

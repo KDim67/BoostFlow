@@ -9,26 +9,40 @@ import WorkflowAutomation from '@/components/dashboard/WorkflowAutomation';
 import { ArrowLeft } from 'lucide-react';
 import { Organization, Project } from '@/lib/types/organization';
 
+/**
+ * WorkflowEditPage - Page component for editing manual workflows
+ * Handles authentication, permission checking, and data loading for workflow automation
+ */
 export default function WorkflowEditPage() {
+  // Extract dynamic route parameters from URL
   const { id, projectId, workflowId } = useParams();
   const router = useRouter();
+  
+  // Component state management
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [project, setProject] = useState<Project | null>(null);
+  
+  // Get current authenticated user
   const { user } = useAuth();
+  
+  // Convert URL parameters to strings (Next.js params can be arrays)
   const organizationId = Array.isArray(id) ? id[0] : id as string;
   const projectIdString = Array.isArray(projectId) ? projectId[0] : projectId as string;
   const workflowIdString = Array.isArray(workflowId) ? workflowId[0] : workflowId as string;
 
+  // Load organization and project data with permission validation
   useEffect(() => {
     const loadData = async () => {
+      // Early return if required data is missing
       if (!user || !organizationId || !projectIdString) return;
       
       try {
         setIsLoading(true);
         setError(null);
         
+        // Check if user has minimum required permissions (member level)
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'member');
         
         if (!permission) {
@@ -36,6 +50,7 @@ export default function WorkflowEditPage() {
           return;
         }
 
+        // Fetch organization and project data in parallel for better performance
         const [orgData, projectData] = await Promise.all([
           getOrganization(organizationId),
           getDocument('projects', projectIdString) as Promise<Project | null>
@@ -47,13 +62,15 @@ export default function WorkflowEditPage() {
         console.error('Error loading data:', error);
         setError('Failed to load organization or project data. Please try again.');
       } finally {
+        // Ensure loading state is cleared regardless of success/failure
         setIsLoading(false);
       }
     };
 
     loadData();
-  }, [user, organizationId, projectIdString]);
+  }, [user, organizationId, projectIdString]); // Re-run when these change
 
+  // Navigate back to the project's main page
   const handleBack = () => {
     router.push(`/organizations/${organizationId}/projects/${projectIdString}`);
   };
@@ -66,6 +83,7 @@ export default function WorkflowEditPage() {
     );
   }
 
+  // Display error message if permission check fails or data loading fails
   if (error) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8">
@@ -86,9 +104,11 @@ export default function WorkflowEditPage() {
     );
   }
 
+  // Render the main workflow editing interface
   return (
     <div className="space-y-6">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md">
+        {/* Header section with navigation and title */}
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-4">
             <button
@@ -107,7 +127,9 @@ export default function WorkflowEditPage() {
           </div>
         </div>
 
+        {/* Main content area with workflow automation component */}
         <div className="p-6">
+          {/* Only render WorkflowAutomation if user is authenticated */}
           {user && (
             <WorkflowAutomation 
               workflowId={workflowIdString}

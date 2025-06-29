@@ -10,30 +10,73 @@ import { where } from 'firebase/firestore';
 import { Organization, Project } from '@/lib/types/organization';
 import Badge from '@/components/Badge';
 
+/**
+ * Organization Projects Page Component
+ * 
+ * Displays and manages projects within a specific organization.
+ * Implements role-based access control where:
+ * - Admins/Owners can see all projects
+ * - Regular users only see projects they're assigned to
+ * 
+ * Features:
+ * - Project listing with search and status filtering
+ * - Inline project editing via modal
+ * - Project deletion with confirmation
+ * - Project statistics dashboard
+ */
 export default function OrganizationProjects() {
+  // Extract organization ID from URL parameters
   const { id } = useParams();
   const router = useRouter();
+  
+  // Core data state
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
+  
+  // UI state management
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Filter and search state
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  
+  // Modal and editing state
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', description: '', status: '', startDate: '', dueDate: '', client: '', budget: '', progress: 0 });
+  
+  // Deletion state to prevent multiple simultaneous deletions
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  
+  // Authentication context
   const { user } = useAuth();
+  
+  // Handle array or string ID from URL params (Next.js dynamic routes)
   const organizationId = Array.isArray(id) ? id[0] : id;
 
+  /**
+   * Main data fetching effect
+   * 
+   * Implements role-based project filtering:
+   * 1. Checks user permissions for the organization
+   * 2. Fetches organization data
+   * 3. Determines user role (admin/owner vs regular user)
+   * 4. Fetches appropriate projects based on role:
+   *    - Admins: All organization projects
+   *    - Regular users: Only projects they're assigned to via team membership
+   * 
+   */
   useEffect(() => {
     const fetchProjectsData = async () => {
+      // Early return if required dependencies are missing
       if (!user || !organizationId) return;
       
       try {
         setIsLoading(true);
         setError(null);
         
+        // Verify user has at least viewer permission for this organization
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'viewer');
         
         if (!permission) {
@@ -42,29 +85,37 @@ export default function OrganizationProjects() {
           return;
         }
         
+        // Fetch organization details
         const orgData = await getOrganization(organizationId);
         setOrganization(orgData);
         
+        // Check if user has admin privileges for broader project access
         const isOwnerOrAdmin = await hasOrganizationPermission(user.uid, organizationId, 'admin');
         
         let projectsData: any[];
         
         if (isOwnerOrAdmin) {
+          // Admins can see all projects in the organization
           projectsData = await queryDocuments('projects', [
             where('organizationId', '==', organizationId)
           ]);
         } else {
+          // Regular users only see projects they're assigned to
+          // First, get all projects in the organization
           const allProjects = await queryDocuments('projects', [
             where('organizationId', '==', organizationId)
           ]);
           
+          // Filter projects based on team membership
           const userProjects = [];
           for (const project of allProjects) {
+            // Check if user is a team member of this project
             const teamMembers = await queryDocuments('team', [
               where('projectId', '==', project.id),
               where('userId', '==', user.uid)
             ]);
             
+            // Include project if user is a team member
             if (teamMembers.length > 0) {
               userProjects.push(project);
             }
@@ -85,25 +136,35 @@ export default function OrganizationProjects() {
     fetchProjectsData();
   }, [user, organizationId]);
 
+  /**
+   * Initiates project editing by populating the edit form
+   * 
+   */
   const handleEditProject = (project: Project) => {
     setEditingProject(project);
     setEditForm({
       name: project.name,
-      description: project.description || '',
+      description: project.description || '', // Default to empty string for optional field
       status: project.status,
-      startDate: project.startDate || '',
+      startDate: project.startDate || '', // Default to empty string for optional field
       dueDate: project.dueDate,
-      client: project.client || '',
-      budget: project.budget || '',
+      client: project.client || '', // Default to empty string for optional field
+      budget: project.budget || '', // Default to empty string for optional field
       progress: project.progress
     });
     setShowEditModal(true);
   };
 
+  /**
+   * Saves project changes to Firestore and updates local state
+   * 
+   */
   const handleSaveProject = async () => {
+    // Validation: ensure we have a project and valid name
     if (!editingProject || !editForm.name.trim()) return;
 
     try {
+      // Update project in Firestore with trimmed string values
       await updateDocument('projects', editingProject.id, {
         name: editForm.name.trim(),
         description: editForm.description.trim(),
@@ -115,12 +176,14 @@ export default function OrganizationProjects() {
         progress: editForm.progress
       });
 
+      // Update local state to reflect changes immediately (optimistic update)
       setProjects(prev => prev.map(p => 
         p.id === editingProject.id 
           ? { ...p, ...editForm, name: editForm.name.trim(), description: editForm.description.trim(), client: editForm.client.trim(), budget: editForm.budget.trim() }
           : p
       ));
 
+      // Close modal and clear editing state
       setShowEditModal(false);
       setEditingProject(null);
     } catch (error) {
@@ -129,19 +192,27 @@ export default function OrganizationProjects() {
     }
   };
 
+  /**
+   * Handles project deletion with confirmation and cleanup
+   * 
+   */
   const handleDeleteProject = async (projectId: string) => {
+    // Confirm user intent with warning about permanent deletion
     if (!confirm('Are you sure you want to delete this project? This action cannot be undone. All project documents and files will also be permanently deleted.')) {
       return;
     }
 
     try {
+      // Set deletion state to show loading indicator and prevent multiple deletions
       setIsDeleting(projectId);
       
+      // Get authentication token for API call
       const token = await user?.getIdToken();
       if (!token) {
         throw new Error('No authentication token');
       }
 
+      // Call API endpoint for secure deletion (handles cascading deletes)
       const response = await fetch('/api/projects/delete', {
         method: 'DELETE',
         headers: {
@@ -155,21 +226,36 @@ export default function OrganizationProjects() {
         throw new Error('Failed to delete project');
       }
       
+      // Remove project from local state
       setProjects(prev => prev.filter(p => p.id !== projectId));
     } catch (error) {
       console.error('Error deleting project:', error);
       alert('Failed to delete project. Please try again.');
     } finally {
+      // Clear deletion state regardless of success/failure
       setIsDeleting(null);
     }
   };
 
+  /**
+   * Computed filtered and sorted projects list
+   * 
+   * Filtering logic:
+   * - Text search: case-insensitive match on project name
+   * - Status filter: exact match on project status (or 'all' for no filter)
+   * 
+   * Sorting:
+   * - Orders by creation date (newest first)
+   * - Handles optional createdAt field safely
+   */
   const filteredProjects = projects
     .filter(project => {
+      // Apply search term filter (case-insensitive)
       if (searchTerm && !project.name.toLowerCase().includes(searchTerm.toLowerCase())) {
         return false;
       }
       
+      // Apply status filter
       if (statusFilter !== 'all' && project.status !== statusFilter) {
         return false;
       }
@@ -177,6 +263,7 @@ export default function OrganizationProjects() {
       return true;
     })
     .sort((a, b) => {
+      // Sort by creation date (newest first), handle missing timestamps
       return b.createdAt?.seconds - a.createdAt?.seconds;
     });
 

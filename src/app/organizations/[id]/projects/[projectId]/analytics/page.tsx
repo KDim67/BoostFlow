@@ -10,47 +10,53 @@ import { hasOrganizationPermission } from '@/lib/firebase/organizationService';
 import { Project, OrganizationRole } from '@/lib/types/organization';
 import { where, orderBy, limit, Timestamp } from 'firebase/firestore';
 
+// UI component for displaying status and priority badges
 import Badge from '@/components/Badge';
 
+// Interface defining the key performance metrics for a project
 interface ProjectMetrics {
-  totalTasks: number;
-  completedTasks: number;
-  overdueTasks: number;
-  activeWorkflows: number;
-  teamMembers: number;
-  avgCompletionTime: number;
-  productivityScore: number;
-  weeklyProgress: number[];
+  totalTasks: number;           // Total number of tasks in the project
+  completedTasks: number;       // Number of completed tasks
+  overdueTasks: number;         // Number of tasks past their due date
+  activeWorkflows: number;      // Number of active automation workflows
+  teamMembers: number;          // Number of team members assigned to the project
+  avgCompletionTime: number;    // Average time to complete tasks (in hours)
+  productivityScore: number;    // Calculated productivity percentage (0-100)
+  weeklyProgress: number[];     // Array of daily task completions for the past week
 }
 
+// Interface for individual task data used in analytics
 interface TaskAnalytics {
-  id: string;
-  title: string;
-  status: string;
-  priority: string;
-  assignee: string;
-  createdAt: Date;
-  completedAt?: Date;
-  dueDate?: Date;
-  timeSpent?: number;
+  id: string;                   // Unique task identifier
+  title: string;                // Task title/name
+  status: string;               // Current status (pending, in-progress, completed, etc.)
+  priority: string;             // Task priority level (low, medium, high)
+  assignee: string;             // Name of the person assigned to the task
+  createdAt: Date;              // When the task was created
+  completedAt?: Date;           // When the task was completed (optional)
+  dueDate?: Date;               // Task deadline (optional)
+  timeSpent?: number;           // Time spent on the task in minutes (optional)
 }
 
+// Interface for AI-generated insights and recommendations
 interface AIInsight {
-  id: string;
-  type: 'suggestion' | 'warning' | 'optimization';
-  title: string;
-  description: string;
-  impact: 'high' | 'medium' | 'low';
-  actionable: boolean;
-  timestamp: Date;
+  id: string;                                           // Unique insight identifier
+  type: 'suggestion' | 'warning' | 'optimization';     // Type of insight provided
+  title: string;                                        // Brief insight title
+  description: string;                                  // Detailed insight description
+  impact: 'high' | 'medium' | 'low';                   // Expected impact level
+  actionable: boolean;                                  // Whether the insight can be acted upon
+  timestamp: Date;                                      // When the insight was generated
 }
 
+// Interface for time period filter options
 interface TimeframeFilter {
-  label: string;
-  value: string;
-  days: number;
+  label: string;                // Display name for the time period
+  value: string;                // Unique identifier for the filter
+  days: number;                 // Number of days the filter represents
 }
 
+// Predefined time period options for filtering analytics data
 const timeframeOptions: TimeframeFilter[] = [
   { label: 'Last 7 days', value: '7d', days: 7 },
   { label: 'Last 30 days', value: '30d', days: 30 },
@@ -59,36 +65,52 @@ const timeframeOptions: TimeframeFilter[] = [
   { label: 'Last year', value: '1y', days: 365 }
 ];
 
-
-
+/**
+ * Main analytics page component for displaying project performance metrics
+ * Provides comprehensive analytics including task completion rates, team performance,
+ * AI-generated insights, and interactive data visualizations
+ */
 export default function ProjectAnalyticsPage() {
+  // Next.js hooks for accessing URL parameters and authentication context
   const params = useParams();
   const { user } = useAuth();
   const { activeOrganization } = useOrganization();
+  
+  // Core data state - project information and calculated metrics
   const [project, setProject] = useState<Project | null>(null);
   const [metrics, setMetrics] = useState<ProjectMetrics | null>(null);
   const [tasks, setTasks] = useState<TaskAnalytics[]>([]);
   const [aiInsights, setAiInsights] = useState<AIInsight[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedTimeframe, setSelectedTimeframe] = useState('30d');
-
-  const [showAIPanel, setShowAIPanel] = useState(false);
-  const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
-  const [hasAdminAccess, setHasAdminAccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isUpdatingTask, setIsUpdatingTask] = useState<string | null>(null);
+  
+  // UI state management
+  const [isLoading, setIsLoading] = useState(true);                    // Loading state for initial data fetch
+  const [selectedTimeframe, setSelectedTimeframe] = useState('30d');   // Currently selected time period filter
+  const [showAIPanel, setShowAIPanel] = useState(false);               // Toggle for AI insights panel visibility
+  const [isGeneratingInsights, setIsGeneratingInsights] = useState(false); // Loading state for AI insight generation
+  const [hasAdminAccess, setHasAdminAccess] = useState(false);         // User permission level for admin features
+  const [error, setError] = useState<string | null>(null);             // Error message display
+  
+  // Task interaction state
+  const [isUpdatingTask, setIsUpdatingTask] = useState<string | null>(null); // Track which task is being updated
+  
+  // Modal state management for task operations
   const [assignModal, setAssignModal] = useState<{isOpen: boolean, taskId: string, taskTitle: string}>({isOpen: false, taskId: '', taskTitle: ''});
   const [editModal, setEditModal] = useState<{isOpen: boolean, taskId: string, currentTitle: string}>({isOpen: false, taskId: '', currentTitle: ''});
+  
+  // Notification system state
   const [notification, setNotification] = useState<{isOpen: boolean, message: string, type: 'success' | 'error'}>({isOpen: false, message: '', type: 'success'});
 
+  // Extract URL parameters for project and organization identification
   const projectId = params.projectId as string;
   const organizationId = params.id as string;
 
+  // Check user permissions to determine access level for admin features
   useEffect(() => {
     const checkPermissions = async () => {
       if (!user || !organizationId) return;
       
       try {
+        // Verify if user has admin privileges for AI insights and advanced features
         const isOwnerOrAdmin = await hasOrganizationPermission(
           user.uid,
           organizationId,
@@ -103,11 +125,13 @@ export default function ProjectAnalyticsPage() {
     checkPermissions();
   }, [user, organizationId]);
 
+  // Fetch project details when component mounts or projectId changes
   useEffect(() => {
     const fetchProject = async () => {
       if (!projectId) return;
       
       try {
+        // Retrieve project information from Firestore
         const projectData = await getDocument('projects', projectId);
         if (projectData) {
           setProject(projectData as Project);
@@ -121,32 +145,40 @@ export default function ProjectAnalyticsPage() {
     fetchProject();
   }, [projectId]);
 
+  // Main analytics data fetching effect - runs when project, timeframe, or projectId changes
   useEffect(() => {
     const fetchAnalyticsData = async () => {
       if (!projectId || !project) return;
       
       setIsLoading(true);
       try {
+        // Calculate date range based on selected timeframe filter
         const timeframe = timeframeOptions.find(t => t.value === selectedTimeframe);
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - (timeframe?.days || 30));
 
+        // Query tasks from Firestore with filters for project and date range
         const tasksData = await queryDocuments('tasks', [
           where('projectId', '==', projectId),
           where('createdAt', '>=', Timestamp.fromDate(startDate)),
           orderBy('createdAt', 'desc'),
-          limit(100)
+          limit(100)  // Limit to 100 most recent tasks for performance
         ]);
 
+        // Transform raw task data into analytics format with safe date handling
         const taskAnalytics: TaskAnalytics[] = tasksData.map(task => {
+          // Utility function to safely convert various date formats to Date objects
           const safeToDate = (dateField: any): Date | undefined => {
             if (!dateField) return undefined;
+            // Handle Firestore Timestamp objects
             if (typeof dateField.toDate === 'function') {
               return dateField.toDate();
             }
+            // Handle native Date objects
             if (dateField instanceof Date) {
               return dateField;
             }
+            // Handle string dates with validation
             if (typeof dateField === 'string') {
               const parsed = new Date(dateField);
               return isNaN(parsed.getTime()) ? undefined : parsed;
@@ -154,68 +186,79 @@ export default function ProjectAnalyticsPage() {
             return undefined;
           };
 
+          // Return normalized task object with fallback values for missing data
           return {
             id: task.id,
-            title: task.title || 'Untitled Task',
-            status: task.status || 'pending',
-            priority: task.priority || 'medium',
-            assignee: (task.assignee && task.assignee.trim() !== '') ? task.assignee.trim() : 'Unassigned',
-            createdAt: safeToDate(task.createdAt) || new Date(),
-            completedAt: safeToDate(task.completedAt),
-            dueDate: safeToDate(task.dueDate),
-            timeSpent: task.timeSpent || 0
+            title: task.title || 'Untitled Task',                    // Default title if missing
+            status: task.status || 'pending',                       // Default status
+            priority: task.priority || 'medium',                    // Default priority level
+            assignee: (task.assignee && task.assignee.trim() !== '') ? task.assignee.trim() : 'Unassigned', // Handle empty assignee
+            createdAt: safeToDate(task.createdAt) || new Date(),    // Ensure valid creation date
+            completedAt: safeToDate(task.completedAt),              // Optional completion date
+            dueDate: safeToDate(task.dueDate),                     // Optional due date
+            timeSpent: task.timeSpent || 0                          // Default to 0 if no time tracked
           };
         });
 
         setTasks(taskAnalytics);
 
+        // Fetch workflow automation data and count active workflows
         const workflows = await getWorkflowsByProject(projectId);
         const activeWorkflows = workflows.filter(w => w.isActive === true).length;
 
+        // Calculate team member count with fallback strategies
         let teamMembersCount = 0;
         try {
+          // First attempt: query dedicated projectMembers collection
           const projectMembers = await queryDocuments('projectMembers', [
             where('projectId', '==', projectId)
           ]);
           teamMembersCount = projectMembers.length;
           
+          // Fallback: use project.members array if no dedicated records found
           if (teamMembersCount === 0 && project?.members) {
             teamMembersCount = Array.isArray(project.members) ? project.members.length : 0;
           }
         } catch (error) {
           console.error('Error fetching team members:', error);
+          // Final fallback: use project.members array on error
           if (project?.members) {
             teamMembersCount = Array.isArray(project.members) ? project.members.length : 0;
           }
         }
 
+        // Calculate core task metrics from the analytics data
         const totalTasks = taskAnalytics.length;
         const completedTasks = taskAnalytics.filter(t => t.status === 'completed').length;
         const overdueTasks = taskAnalytics.filter(t => 
-          t.dueDate && t.dueDate < new Date() && t.status !== 'completed'
+          t.dueDate && t.dueDate < new Date() && t.status !== 'completed'  // Tasks past due date and not completed
         ).length;
 
+        // Calculate average completion time for tasks with time tracking data
         const completedTasksWithTime = taskAnalytics.filter(t => 
           t.status === 'completed' && t.timeSpent && t.timeSpent > 0
         );
         const avgCompletionTime = completedTasksWithTime.length > 0 
-          ? (completedTasksWithTime.reduce((sum, t) => sum + (t.timeSpent || 0), 0) / completedTasksWithTime.length) / 60
+          ? (completedTasksWithTime.reduce((sum, t) => sum + (t.timeSpent || 0), 0) / completedTasksWithTime.length) / 60  // Convert minutes to hours
           : 0;
 
+        // Calculate productivity score as percentage of completed vs total tasks
         const productivityScore = totalTasks > 0 
           ? Math.round((completedTasks / totalTasks) * 100)
           : 0;
 
+        // Generate weekly progress data - tasks completed each day for the past 7 days
         const weeklyProgress = Array.from({ length: 7 }, (_, i) => {
           const date = new Date();
-          date.setDate(date.getDate() - (6 - i));
+          date.setDate(date.getDate() - (6 - i));  // Calculate date for each day (6 days ago to today)
           const dayTasks = taskAnalytics.filter(t => 
             t.completedAt && 
-            t.completedAt.toDateString() === date.toDateString()
+            t.completedAt.toDateString() === date.toDateString()  // Match tasks completed on this specific day
           ).length;
           return dayTasks;
         });
 
+        // Compile current period metrics into a structured object
         const projectMetrics: ProjectMetrics = {
           totalTasks,
           completedTasks,
@@ -229,9 +272,11 @@ export default function ProjectAnalyticsPage() {
 
         setMetrics(projectMetrics);
         
+        // Determine if previous metrics should be updated (if missing or project is older than 24 hours)
         const shouldUpdatePreviousMetrics = !project.previousMetrics || 
           (Date.now() - new Date(project.createdAt).getTime()) > 24 * 60 * 60 * 1000;
         
+        // Update previous metrics in Firestore for comparison purposes
         if (shouldUpdatePreviousMetrics) {
           try {
             const { updateDocument } = await import('@/lib/firebase/firestoreService');
@@ -259,18 +304,21 @@ export default function ProjectAnalyticsPage() {
     fetchAnalyticsData();
   }, [projectId, project, selectedTimeframe]);
 
+  // Generate AI-powered insights based on project data (admin-only feature)
   const generateAIInsights = async () => {
     if (!hasAdminAccess || !metrics || !project) return;
     
     setIsGeneratingInsights(true);
     try {
+      // Serialize task data for API transmission (limit to 20 most recent tasks)
       const serializedTasks = tasks.slice(0, 20).map(task => ({
         ...task,
-        createdAt: task.createdAt.toISOString(),
-        completedAt: task.completedAt?.toISOString(),
-        dueDate: task.dueDate?.toISOString()
+        createdAt: task.createdAt.toISOString(),      // Convert Date objects to ISO strings
+        completedAt: task.completedAt?.toISOString(), // Handle optional completion date
+        dueDate: task.dueDate?.toISOString()          // Handle optional due date
       }));
 
+      // Call AI insights API with project data and metrics
       const response = await fetch('/api/ai/insights', {
         method: 'POST',
         headers: {
@@ -289,11 +337,12 @@ export default function ProjectAnalyticsPage() {
         throw new Error('Failed to generate insights');
       }
 
+      // Process and store AI-generated insights with unique IDs and timestamps
       const insights = await response.json();
       setAiInsights(insights.map((insight: any, index: number) => ({
-        id: `insight-${Date.now()}-${index}`,
+        id: `insight-${Date.now()}-${index}`,  // Generate unique ID for each insight
         ...insight,
-        timestamp: new Date()
+        timestamp: new Date()                   // Add timestamp for tracking
       })));
     } catch (error) {
       console.error('Error generating AI insights:', error);
@@ -302,11 +351,13 @@ export default function ProjectAnalyticsPage() {
     }
   };
 
+  // Handle task completion with optimistic UI updates
   const handleCompleteTask = async (taskId: string) => {
     if (!taskId) return;
     
     setIsUpdatingTask(taskId);
     try {
+      // Update task status in Firestore
       const { updateDocument } = await import('@/lib/firebase/firestoreService');
       await updateDocument('tasks', taskId, {
         status: 'completed',
@@ -314,6 +365,7 @@ export default function ProjectAnalyticsPage() {
         updatedAt: new Date()
       });
       
+      // pdate local task state for immediate UI feedback
       setTasks(prevTasks => 
         prevTasks.map(task => 
           task.id === taskId 
@@ -322,6 +374,7 @@ export default function ProjectAnalyticsPage() {
         )
       );
       
+      // Recalculate metrics based on updated task data
       const timeframe = timeframeOptions.find(t => t.value === selectedTimeframe);
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - (timeframe?.days || 30));
@@ -332,6 +385,7 @@ export default function ProjectAnalyticsPage() {
           : task
       );
       
+      // Recalculate key metrics after task completion
       const totalTasks = updatedTasks.length;
       const completedTasks = updatedTasks.filter(t => t.status === 'completed').length;
       const overdueTasks = updatedTasks.filter(t => 
@@ -342,6 +396,7 @@ export default function ProjectAnalyticsPage() {
         ? Math.round((completedTasks / totalTasks) * 100)
         : 0;
       
+      // Update metrics state with new calculations
       if (metrics) {
         setMetrics({
           ...metrics,
@@ -358,18 +413,22 @@ export default function ProjectAnalyticsPage() {
     }
   };
   
+  // Open task assignment modal with task details
   const handleAssignTask = (taskId: string, taskTitle: string) => {
     setAssignModal({isOpen: true, taskId, taskTitle});
   };
   
+  // Submit task assignment to a new team member
   const submitAssignTask = async (taskId: string, newAssignee: string) => {
     try {
+      // Update assignee in Firestore
       const { updateDocument } = await import('@/lib/firebase/firestoreService');
       await updateDocument('tasks', taskId, {
         assignee: newAssignee.trim(),
         updatedAt: new Date()
       });
       
+      // Update local task state for immediate UI feedback
       setTasks(prevTasks => 
         prevTasks.map(task => 
           task.id === taskId 
@@ -378,6 +437,7 @@ export default function ProjectAnalyticsPage() {
         )
       );
       
+      // Show success notification and close modal
       setNotification({isOpen: true, message: `Task successfully assigned to ${newAssignee.trim()}`, type: 'success'});
       setAssignModal({isOpen: false, taskId: '', taskTitle: ''});
     } catch (error) {
@@ -386,18 +446,22 @@ export default function ProjectAnalyticsPage() {
     }
   };
   
+  // Open task editing modal with current title
   const handleEditTask = (taskId: string, currentTitle: string) => {
     setEditModal({isOpen: true, taskId, currentTitle});
   };
   
+  // Submit task title update
   const submitEditTask = async (taskId: string, newTitle: string) => {
     try {
+      // Update task title in Firestore
       const { updateDocument } = await import('@/lib/firebase/firestoreService');
       await updateDocument('tasks', taskId, {
         title: newTitle.trim(),
         updatedAt: new Date()
       });
       
+      // Update local task state for immediate UI feedback
       setTasks(prevTasks => 
         prevTasks.map(task => 
           task.id === taskId 
@@ -406,6 +470,7 @@ export default function ProjectAnalyticsPage() {
         )
       );
       
+      // Show success notification and close modal
       setNotification({isOpen: true, message: 'Task title updated successfully', type: 'success'});
       setEditModal({isOpen: false, taskId: '', currentTitle: ''});
     } catch (error) {

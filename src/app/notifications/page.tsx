@@ -6,6 +6,11 @@ import { Notification } from '@/lib/types/notification';
 import { formatDistanceToNow } from 'date-fns';
 import Link from 'next/link';
 
+/**
+ * NotificationsPage component displays user notifications with filtering and interaction capabilities.
+ * Supports marking notifications as read, handling invitations, and filtering by read status.
+ */
+
 const NotificationsPage = () => {
   const {
     notifications,
@@ -17,12 +22,17 @@ const NotificationsPage = () => {
   } = useNotifications(true);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
+  // Mark notification as read when user interacts with it
   const handleNotificationClick = async (notification: Notification) => {
     if (!notification.read) {
       await markAsRead(notification.id);
     }
   };
 
+  /**
+   * Handles organization invitation acceptance/decline actions
+   * Redirects user to appropriate page based on action result
+   */
   const handleInvitationAction = async (notification: Notification, action: 'accept' | 'decline') => {
     if (notification.metadata?.membershipId) {
       try {
@@ -42,6 +52,7 @@ const NotificationsPage = () => {
         if (result.success) {
           await markAsRead(notification.id);
           
+          // Redirect to custom URL or default to organizations page
           if (result.redirectUrl) {
             window.location.href = result.redirectUrl;
           } else {
@@ -49,15 +60,21 @@ const NotificationsPage = () => {
           }
         } else {
           console.error('Failed to process invitation:', result.message);
+          // Fallback to invitation page on failure
           window.location.href = `/invitation/${notification.metadata.membershipId}`;
         }
       } catch (error) {
         console.error('Error processing invitation:', error);
+        // Fallback to invitation page on error
         window.location.href = `/invitation/${notification.metadata.membershipId}`;
       }
     }
   };
 
+  /**
+   * Returns appropriate SVG icon based on notification type
+   * Each notification type has a distinct icon and color scheme
+   */
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'organization_invite':
@@ -104,9 +121,14 @@ const NotificationsPage = () => {
     }
   };
 
+  /**
+   * Formats notification timestamp to human-readable relative time
+   * Handles both Firestore timestamps and regular Date objects
+   */
   const formatNotificationTime = (timestamp: any) => {
     if (!timestamp) return '';
     try {
+      // Handle Firestore timestamp or regular Date object
       const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
       return formatDistanceToNow(date, { addSuffix: true });
     } catch {
@@ -114,6 +136,7 @@ const NotificationsPage = () => {
     }
   };
 
+  // Filter notifications based on selected filter (all or unread only)
   const filteredNotifications = filter === 'unread' 
     ? notifications.filter(n => !n.read)
     : notifications;

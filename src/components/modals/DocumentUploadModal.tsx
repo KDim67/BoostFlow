@@ -3,15 +3,24 @@
 import { useState, useRef } from 'react';
 import { useFileUpload } from '@/lib/hooks/useFileUpload';
 
+/**
+ * Props interface for the DocumentUploadModal component
+ * Defines the required properties for document upload functionality
+ */
 interface DocumentUploadModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  projectId: string;
-  organizationId: string;
-  folders: string[];
-  onUploadSuccess: (document: any) => void;
+  isOpen: boolean; // Controls modal visibility
+  onClose: () => void; // Callback to close the modal
+  projectId: string; // Target project identifier
+  organizationId: string; // Organization context for the upload
+  folders: string[]; // Available folder options for document organization
+  onUploadSuccess: (document: any) => void; // Callback fired when upload completes successfully
 }
 
+/**
+ * Modal component for uploading documents to a project
+ * Supports both drag-and-drop and click-to-select file upload methods
+ * Organizes documents into folders within the project structure
+ */
 export default function DocumentUploadModal({
   isOpen,
   onClose,
@@ -20,17 +29,29 @@ export default function DocumentUploadModal({
   folders,
   onUploadSuccess,
 }: DocumentUploadModalProps) {
+  // Default folder selection - 'General' is the fallback folder
   const [selectedFolder, setSelectedFolder] = useState('General');
+  // Tracks drag-and-drop UI state for visual feedback
   const [dragActive, setDragActive] = useState(false);
+  // Reference to hidden file input for programmatic file selection
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Custom hook providing upload functionality and progress tracking
   const { uploading, progress, uploadProjectDocument } = useFileUpload();
 
+  /**
+   * Handles file selection and initiates upload process
+   * Supports both drag-and-drop and file input selection
+   * @param files - FileList from input or drag event
+   */
   const handleFileSelect = async (files: FileList | null) => {
+    // Early return if no files selected
     if (!files || files.length === 0) return;
 
+    // Only process the first file (single file upload)
     const file = files[0];
     
     try {
+      // Upload document with project context and folder organization
       await uploadProjectDocument(
         file,
         projectId,
@@ -38,23 +59,35 @@ export default function DocumentUploadModal({
         selectedFolder,
         {
           onSuccess: (result) => {
+            // Notify parent component of successful upload
             onUploadSuccess(result.document);
+            // Close modal after successful upload
             onClose();
           },
           onError: (error) => {
             console.error('Upload error:', error);
+            // Show user-friendly error message
             alert(`Upload failed: ${error}`);
           },
         }
       );
     } catch (error) {
+      // Handle any unexpected errors during upload process
       console.error('Upload error:', error);
     }
   };
 
+  /**
+   * Handles drag events for drag-and-drop functionality
+   * Manages visual feedback during drag operations
+   * @param e - React drag event
+   */
   const handleDrag = (e: React.DragEvent) => {
+    // Prevent default browser behavior for file drops
     e.preventDefault();
     e.stopPropagation();
+    
+    // Update drag state based on event type for visual feedback
     if (e.type === 'dragenter' || e.type === 'dragover') {
       setDragActive(true);
     } else if (e.type === 'dragleave') {
@@ -62,11 +95,19 @@ export default function DocumentUploadModal({
     }
   };
 
+  /**
+   * Handles file drop events when user drops files onto the drop zone
+   * Extracts files from drag event and initiates upload process
+   * @param e - React drag event containing dropped files
+   */
   const handleDrop = (e: React.DragEvent) => {
+    // Prevent default browser behavior
     e.preventDefault();
     e.stopPropagation();
+    // Reset drag state after drop
     setDragActive(false);
     
+    // Process dropped files if any exist
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFileSelect(e.dataTransfer.files);
     }

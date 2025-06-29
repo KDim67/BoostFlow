@@ -4,31 +4,49 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { resetPassword } from '@/lib/firebase/authService';
 
-export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [emailSent, setEmailSent] = useState(false);
+/**
+ * Forgot Password Page Component
+ * Handles password reset functionality with email verification
+ * Provides user feedback and error handling for various Firebase auth scenarios
+ */
 
+export default function ForgotPasswordPage() {
+  // Form state management
+  const [email, setEmail] = useState('');
+  const [isLoading, setIsLoading] = useState(false); // Prevents multiple submissions
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null); // User feedback messages
+  const [emailSent, setEmailSent] = useState(false); // Controls UI state after successful email send
+
+  /**
+   * Handles password reset form submission
+   * Validates email input, calls Firebase auth service, and manages UI state
+   * Provides specific error messages based on Firebase error codes
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Basic email validation
     if (!email) {
       setMessage({ type: 'error', text: 'Please enter your email address' });
       return;
     }
 
+    // Set loading state to prevent multiple submissions
     setIsLoading(true);
-    setMessage(null);
+    setMessage(null); // Clear previous messages
 
     try {
+      // Call Firebase password reset service
       await resetPassword(email);
-      setEmailSent(true);
+      setEmailSent(true); // Switch to success UI state
       setMessage({ 
         type: 'success', 
         text: 'Password reset email sent! Please check your inbox and follow the instructions to reset your password.' 
       });
     } catch (error: any) {
       console.error('Error sending password reset email:', error);
+      
+      // Handle specific Firebase auth error codes with user-friendly messages
       if (error.code === 'auth/user-not-found') {
         setMessage({ type: 'error', text: 'No account found with this email address' });
       } else if (error.code === 'auth/invalid-email') {
@@ -36,10 +54,11 @@ export default function ForgotPasswordPage() {
       } else if (error.code === 'auth/too-many-requests') {
         setMessage({ type: 'error', text: 'Too many requests. Please try again later.' });
       } else {
+        // Fallback for unexpected errors
         setMessage({ type: 'error', text: error.message || 'Failed to send password reset email. Please try again.' });
       }
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Always reset loading state
     }
   };
 
@@ -73,7 +92,7 @@ export default function ForgotPasswordPage() {
                 </Link>
               </div>
               
-              {/* Message */}
+              {/* Dynamic message display with conditional styling for success/error states */}
               {message && (
                 <div className={`mb-6 p-4 rounded-md ${
                   message.type === 'success' 

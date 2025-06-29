@@ -4,9 +4,15 @@ import { useNotifications } from '@/lib/firebase/useNotifications';
 import { Notification } from '@/lib/types/notification';
 import { formatDistanceToNow } from 'date-fns';
 
+/**
+ * NotificationDropdown component renders a bell icon with notification count badge
+ * and a dropdown panel showing recent notifications with actions.
+ * Supports marking notifications as read, hiding them, and handling invitation responses.
+ */
 const NotificationDropdown = () => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  // Firebase notifications hook providing real-time notification data and actions
   const {
     notifications,
     unreadCount,
@@ -17,6 +23,7 @@ const NotificationDropdown = () => {
     hideFromDropdown
   } = useNotifications();
 
+  // Close dropdown when clicking outside of it
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -28,6 +35,10 @@ const NotificationDropdown = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  /**
+   * Handles clicking on a notification item
+   * Marks unread notifications as read and closes dropdown if there's an action URL
+   */
   const handleNotificationClick = async (notification: Notification) => {
     if (!notification.read) {
       await markAsRead(notification.id);
@@ -38,6 +49,11 @@ const NotificationDropdown = () => {
     }
   };
 
+  /**
+   * Handles organization invitation accept/decline actions
+   * Makes API call to process invitation and redirects user appropriately
+   * Falls back to invitation page if API call fails
+   */
   const handleInvitationAction = async (notification: Notification, action: 'accept' | 'decline') => {
     if (notification.metadata?.membershipId) {
       try {
@@ -57,6 +73,7 @@ const NotificationDropdown = () => {
         if (result.success) {
           await markAsRead(notification.id);
           
+          // Redirect to specific URL or default to organizations page
           if (result.redirectUrl) {
             window.location.href = result.redirectUrl;
           } else {
@@ -64,15 +81,21 @@ const NotificationDropdown = () => {
           }
         } else {
           console.error('Failed to process invitation:', result.message);
+          // Fallback to invitation page for manual handling
           window.location.href = `/invitation/${notification.metadata.membershipId}`;
         }
       } catch (error) {
         console.error('Error processing invitation:', error);
+        // Fallback to invitation page for manual handling
         window.location.href = `/invitation/${notification.metadata.membershipId}`;
       }
     }
   };
 
+  /**
+   * Returns appropriate SVG icon based on notification type
+   * Each notification type has a distinct icon and color scheme
+   */
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'organization_invite':
@@ -105,9 +128,15 @@ const NotificationDropdown = () => {
     }
   };
 
+  /**
+   * Formats notification timestamp to relative time (e.g., "2 hours ago")
+   * Handles both Firestore timestamps and regular Date objects
+   * Returns empty string if timestamp is invalid or missing
+   */
   const formatNotificationTime = (timestamp: any) => {
     if (!timestamp) return '';
     try {
+      // Handle Firestore timestamp objects or regular Date objects
       const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
       return formatDistanceToNow(date, { addSuffix: true });
     } catch {
@@ -131,6 +160,7 @@ const NotificationDropdown = () => {
         )}
       </button>
 
+      {/* Dropdown panel */}
       {isOpen && (
         <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
           <div className="p-4 border-b border-gray-200 dark:border-gray-700">
@@ -149,6 +179,7 @@ const NotificationDropdown = () => {
             </div>
           </div>
 
+          {/* Scrollable notification list with loading, error, and empty states */}
           <div className="max-h-96 overflow-y-auto">
             {isLoading ? (
               <div className="p-4 text-center">

@@ -9,7 +9,20 @@ import { getPlatformMetrics, getResourceUtilization } from '@/lib/services/platf
 import { NotificationService } from '@/lib/firebase/notificationService';
 import { usePlatformAuth } from '@/lib/firebase/usePlatformAuth';
 
+/**
+ * Platform Admin Dashboard Component
+ * 
+ * Provides a comprehensive dashboard for platform administrators to monitor:
+ * - System health and performance metrics
+ * - User and organization statistics
+ * - Resource utilization (CPU, memory, storage, network)
+ * - Recent platform activity
+ * - System announcement capabilities (super admin only)
+ * 
+ * Access is restricted to users with platform admin privileges.
+ */
 export default function PlatformAdminDashboard() {
+  // Platform metrics state
   const [metrics, setMetrics] = useState({
     totalOrganizations: 0,
     activeUsers: 0,
@@ -18,23 +31,35 @@ export default function PlatformAdminDashboard() {
     organizationGrowthRate: 0,
     userGrowthRate: 0
   });
+  
+  // System resource utilization state
   const [resourceUsage, setResourceUsage] = useState({
     cpuUsage: 0,
     memoryUsage: 0,
     storageUsage: 0,
     networkBandwidth: 0
   });
-  const [isLoading, setIsLoading] = useState(true);
-  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
-  const [announcementTitle, setAnnouncementTitle] = useState('');
-  const [announcementMessage, setAnnouncementMessage] = useState('');
-  const [isSendingAnnouncement, setIsSendingAnnouncement] = useState(false);
+  
+  // UI state management
+  const [isLoading, setIsLoading] = useState(true); // Controls loading indicators
+  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false); // Modal visibility
+  const [announcementTitle, setAnnouncementTitle] = useState(''); // System announcement title
+  const [announcementMessage, setAnnouncementMessage] = useState(''); // System announcement content
+  const [isSendingAnnouncement, setIsSendingAnnouncement] = useState(false); // Prevents double-sending
+  
+  // Authentication and authorization hooks
   const { user, isPlatformAdmin, isSuperAdmin } = usePlatformAuth();
 
+  // Initial data loading effect
   useEffect(() => {
+    /**
+     * Fetches platform metrics and resource utilization data concurrently
+     * Uses Promise.all for optimal performance by running requests in parallel
+     */
     const fetchDashboardData = async () => {
       try {
         setIsLoading(true);
+        // Parallel API calls to reduce loading time
         const [metricsData, resourceData] = await Promise.all([
           getPlatformMetrics(),
           getResourceUtilization()
@@ -49,14 +74,20 @@ export default function PlatformAdminDashboard() {
       }
     };
 
+    // Only fetch data if user is authenticated and has admin privileges
     if (user && isPlatformAdmin) {
       fetchDashboardData();
     }
   }, [user, isPlatformAdmin]);
 
+  /**
+   * Manually refreshes dashboard data
+   * Triggered by the refresh button
+   */
   const handleRefreshData = async () => {
     try {
       setIsLoading(true);
+      // Same parallel fetching pattern as initial load
       const [metricsData, resourceData] = await Promise.all([
         getPlatformMetrics(),
         getResourceUtilization()
@@ -71,7 +102,18 @@ export default function PlatformAdminDashboard() {
     }
   };
 
+  /**
+   * Handles sending system-wide announcements to all platform users
+   * Only available to super administrators
+   * 
+   * Process:
+   * 1. Validates input fields
+   * 2. Fetches all users from the platform
+   * 3. Creates notifications for each user concurrently
+   * 4. Resets form and closes modal on success
+   */
   const handleSendAnnouncement = async () => {
+    // Input valdation
     if (!announcementTitle.trim() || !announcementMessage.trim()) {
       alert('Please fill in both title and message');
       return;
@@ -80,6 +122,7 @@ export default function PlatformAdminDashboard() {
     try {
       setIsSendingAnnouncement(true);
       
+      // Fetch all platform users
       const response = await fetch('/api/admin/users');
       if (!response.ok) {
         throw new Error('Failed to fetch users');
@@ -87,18 +130,21 @@ export default function PlatformAdminDashboard() {
       
       const { users } = await response.json();
       
+      // Create notification promises for all users
       const notificationPromises = users.map((user: any) => 
         NotificationService.createNotification(
           user.uid,
           announcementTitle,
           announcementMessage,
-          'system_announcement',
+          'system_announcement', // Special notification type for system messages
           undefined
         )
       );
       
+      // Send all notifications concurrently
       await Promise.all(notificationPromises);
       
+      // Reset form state and close modal
       setAnnouncementTitle('');
       setAnnouncementMessage('');
       setShowAnnouncementModal(false);

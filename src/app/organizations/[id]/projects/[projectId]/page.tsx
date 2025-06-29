@@ -16,85 +16,125 @@ import ProjectDocumentsPage from './documents/page';
 import OrganizationProjectsAnalytics from './analytics/page';
 import ProjectWorkflowsPage from './automation/page';
 
+// Interface for individual task items within a project
 interface Task {
   id: string;
   title: string;
-  status: string;
+  status: string; // 'pending' | 'in-progress' | 'completed'
   assignee: string;
   dueDate: string;
-  priority: string;
+  priority: string; // 'low' | 'medium' | 'high'
 }
 
+// Interface for project milestones with strict status typing
 interface Milestone {
   id: string;
   title: string;
-  description?: string;
+  description?: string; // Optional milestone description
   dueDate: string;
   status: 'Completed' | 'In Progress' | 'Pending';
-  projectId: string;
-  createdBy: string;
-  createdAt: any;
-  updatedAt: any;
+  projectId: string; // Foreign key to parent project
+  createdBy: string; // User ID who created the milestone
+  createdAt: any; // Firestore timestamp
+  updatedAt: any; // Firestore timestamp
 }
 
+// Interface for team member information
 interface TeamMember {
   id: string;
   name: string;
-  role: string;
-  avatar: string;
+  role: string; // Job title or project role
+  avatar: string; // URL to profile image
 }
 
+// Main project interface with all related data
 interface Project {
   id: string;
   name: string;
   description: string;
-  progress: number;
-  status: string;
+  progress: number; // Percentage completion (0-100)
+  status: string; // 'planning' | 'active' | 'on-hold' | 'completed'
   startDate: string;
   dueDate: string;
-  client: string;
-  budget: string;
-  organizationId: string;
-  createdBy: string;
-  createdAt: any;
-  updatedAt: any;
+  client: string; // Client name or organization
+  budget: string; // Project budget as string for flexibility
+  organizationId: string; // Foreign key to parent organization
+  createdBy: string; // User ID who created the project
+  createdAt: any; // Firestore timestamp
+  updatedAt: any; // Firestore timestamp
   milestones?: Milestone[];
   teamMembers?: TeamMember[];
   tasks?: Task[];
 }
 
+/**
+ * ProjectDetailPage Component
+ * 
+ * Main component for displaying detailed project information including:
+ * - Project overview with milestones and recent tasks
+ * - Tabbed interface for tasks, documents, team, analytics, and workflows
+ * - Modal forms for editing projects and managing milestones
+ * - Permission-based access control
+ */
 export default function ProjectDetailPage() {
+  // Extract URL parameters for organization and project IDs
   const { id, projectId } = useParams();
+  
+  // Core data state
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
-  const [activeTab, setActiveTab] = useState('overview');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  
+  // UI state management
+  const [activeTab, setActiveTab] = useState('overview'); // Controls which tab content is displayed
+  const [isLoading, setIsLoading] = useState(true); // Loading state for initial data fetch
+  const [error, setError] = useState<string | null>(null); // Error message display
+  
+  // Milestone modal state
   const [showMilestoneModal, setShowMilestoneModal] = useState(false);
-  const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(null);
+  const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(null); // null for new, object for edit
   const [milestoneForm, setMilestoneForm] = useState({
     title: '',
     description: '',
     dueDate: '',
     status: 'Pending' as 'Completed' | 'In Progress' | 'Pending'
   });
+  
+  // Project edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', description: '', status: '', startDate: '', dueDate: '', client: '', budget: '', progress: 0 });
+  const [editForm, setEditForm] = useState({ 
+    name: '', description: '', status: '', startDate: '', 
+    dueDate: '', client: '', budget: '', progress: 0 
+  });
+  
+  // Authentication and navigation
   const { user } = useAuth();
   const router = useRouter();
+  
+  // Convert URL params to strings
   const organizationId = Array.isArray(id) ? id[0] : id;
   const projectIdString = Array.isArray(projectId) ? projectId[0] : projectId;
 
+  /**
+   * Main data fetching effect
+   * 
+   * Handles:
+   * 1. Permission verification for organization access
+   * 2. Loading project, organization, tasks, milestones, and team data
+   * 3. Data validation and error handling
+   * 4. Cross-referencing project ownership with organization
+   */
   useEffect(() => {
     const fetchProjectData = async () => {
+      // Early return if required data is missing
       if (!user || !organizationId || !projectIdString) return;
       
       try {
         setIsLoading(true);
         setError(null);
         
+        // Check if user has permission to view this organization
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'viewer');
         
         if (!permission) {
@@ -103,9 +143,11 @@ export default function ProjectDetailPage() {
           return;
         }
         
+        // Fetch organization data
         const orgData = await getOrganization(organizationId);
         setOrganization(orgData);
         
+        // Fetch main project document
         const projectData = await getDocument('projects', projectIdString);
         
         if (!projectData) {
@@ -114,6 +156,7 @@ export default function ProjectDetailPage() {
           return;
         }
         
+        // Verify project belongs to the current organization (security check)
         if (projectData.organizationId !== organizationId) {
           setError('This project does not belong to the selected organization');
           setIsLoading(false);
@@ -122,6 +165,7 @@ export default function ProjectDetailPage() {
         
         setProject(projectData as Project);
         
+        // Fetch related data in parallel for better performance
         const tasksData = await queryDocuments('tasks', [
           where('projectId', '==', projectIdString)
         ]);
@@ -136,6 +180,7 @@ export default function ProjectDetailPage() {
           where('projectId', '==', projectIdString)
         ]);
         
+        // Update project with team members if any exist
         if (projectData && teamData.length > 0) {
           setProject(prev => ({
             ...prev!,
@@ -151,12 +196,17 @@ export default function ProjectDetailPage() {
     };
 
     fetchProjectData();
-  }, [user, organizationId, projectIdString]);
+  }, [user, organizationId, projectIdString]); // Re-run when user or IDs change
 
 
 
+  /**
+   * Milestone Management Functions
+   */
+  
+  // Initialize form for creating a new milestone
   const handleAddMilestone = () => {
-    setEditingMilestone(null);
+    setEditingMilestone(null); // Clear editing state
     setMilestoneForm({
       title: '',
       description: '',
@@ -166,6 +216,7 @@ export default function ProjectDetailPage() {
     setShowMilestoneModal(true);
   };
 
+  // Populate form with existing milestone data for editing
   const handleEditMilestone = (milestone: Milestone) => {
     setEditingMilestone(milestone);
     setMilestoneForm({
@@ -177,11 +228,14 @@ export default function ProjectDetailPage() {
     setShowMilestoneModal(true);
   };
 
+  // Save milestone
   const handleSaveMilestone = async () => {
+    // Validate required fields
     if (!milestoneForm.title.trim() || !milestoneForm.dueDate || !user || !projectIdString) return;
 
     try {
       if (editingMilestone) {
+        // Update existing milestone in Firestore
         await updateDocument('milestones', editingMilestone.id, {
           title: milestoneForm.title.trim(),
           description: milestoneForm.description.trim(),
@@ -189,12 +243,14 @@ export default function ProjectDetailPage() {
           status: milestoneForm.status
         });
         
+        // Update local state to reflect changes immediately
         setMilestones(prev => prev.map(m => 
           m.id === editingMilestone.id 
             ? { ...m, ...milestoneForm }
             : m
         ));
       } else {
+        // Create new milestone in Firestore
         const newMilestoneId = await createDocument('milestones', {
           title: milestoneForm.title.trim(),
           description: milestoneForm.description.trim(),
@@ -204,6 +260,7 @@ export default function ProjectDetailPage() {
           createdBy: user.uid
         });
         
+        // Create local milestone object with generated ID
         const newMilestone: Milestone = {
           id: newMilestoneId,
           ...milestoneForm,
@@ -213,9 +270,11 @@ export default function ProjectDetailPage() {
           updatedAt: new Date()
         };
         
+        // Add to local state for immediate UI update
         setMilestones(prev => [...prev, newMilestone]);
       }
       
+      // Close modal and reset form state
       setShowMilestoneModal(false);
       setEditingMilestone(null);
     } catch (error) {
@@ -223,20 +282,24 @@ export default function ProjectDetailPage() {
     }
   };
 
+  // Delete milestone with confirmation
   const handleDeleteMilestone = async (milestoneId: string) => {
     if (!confirm('Are you sure you want to delete this milestone?')) return;
     
     try {
       await deleteDocument('milestones', milestoneId);
+      // Remove from local state immediately
       setMilestones(prev => prev.filter(m => m.id !== milestoneId));
     } catch (error) {
       console.error('Error deleting milestone:', error);
     }
   };
 
+  // Quick status change for milestones
   const handleMilestoneStatusChange = async (milestoneId: string, newStatus: 'Completed' | 'In Progress' | 'Pending') => {
     try {
       await updateDocument('milestones', milestoneId, { status: newStatus });
+      // Update local state for immediate feedback
       setMilestones(prev => prev.map(m => 
         m.id === milestoneId ? { ...m, status: newStatus } : m
       ));
@@ -245,18 +308,25 @@ export default function ProjectDetailPage() {
     }
   };
 
+  /**
+   * Task Management Functions
+   */
+  
+  // Update task status with completion timestamp tracking
   const handleTaskStatusChange = async (taskId: string, newStatus: 'pending' | 'in-progress' | 'completed') => {
     try {
       const updateData: any = { status: newStatus };
       
+      // Set completion timestamp when task is marked as completed
       if (newStatus === 'completed') {
         updateData.completedAt = new Date();
       } else {
-        updateData.completedAt = null;
+        updateData.completedAt = null; // Clear completion time for non-completed tasks
       }
       
       await updateDocument('tasks', taskId, updateData);
       
+      // Update local state for immediate UI feedback
       setTasks(prev => prev.map(t => 
         t.id === taskId ? { 
           ...t, 
@@ -269,6 +339,11 @@ export default function ProjectDetailPage() {
     }
   };
 
+  /**
+   * Project Management Functions
+   */
+  
+  // Initialize project edit form with current project data
   const handleEditProject = () => {
     if (!project) return;
     setEditForm({
@@ -284,10 +359,13 @@ export default function ProjectDetailPage() {
     setShowEditModal(true);
   };
 
+  // Save project changes to Firestore and update local state
   const handleSaveProject = async () => {
+    // Validate required fields
     if (!project || !editForm.name.trim()) return;
 
     try {
+      // Update project in Firestore
       await updateDocument('projects', project.id, {
         name: editForm.name.trim(),
         description: editForm.description.trim(),
@@ -299,6 +377,7 @@ export default function ProjectDetailPage() {
         progress: editForm.progress
       });
 
+      // Update local project state for immediate UI update
       setProject(prev => prev ? {
         ...prev,
         name: editForm.name.trim(),

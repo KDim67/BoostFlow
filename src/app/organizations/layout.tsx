@@ -3,6 +3,12 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 
+/**
+ * OrganizationsLayout component.
+ * This layout component provides a consistent structure for pages within the organizations section of the application.
+ * It includes a header area and renders its children within a main content area.
+ *
+ */
 export default function OrganizationsLayout({
   children,
 }: {

@@ -10,18 +10,30 @@ import OrganizationSelector from './navigation/OrganizationSelector';
 import NotificationDropdown from './navigation/NotificationDropdown';
 import Image from 'next/image';
 
+/**
+ * Main navigation component that adapts based on user authentication state and current route.
+ * Provides responsive design with mobile menu, user profile management, and role-based access.
+ */
+
 const Navbar = () => {
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  // UI state management
+  const [isScrolled, setIsScrolled] = useState(false); // Tracks scroll position for navbar styling
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Controls mobile menu visibility
+  const [isProfileOpen, setIsProfileOpen] = useState(false); // Controls profile dropdown visibility
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null); // Stores user profile data
+  
+  // Navigation and routing
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout, loading: authLoading } = useAuth();
-  const [showOrgSelector, setShowOrgSelector] = useState(false);
   
+  // Authentication state
+  const { user, logout, loading: authLoading } = useAuth();
   const { isPlatformModerator, isSuperAdmin } = usePlatformAuth();
+  
+  // Conditional UI state
+  const [showOrgSelector, setShowOrgSelector] = useState(false); // Shows organization selector on specific routes
 
+  // Fetch user profile data when user authentication state changes
   useEffect(() => {
     const fetchUserProfile = async () => {
       if (user?.uid) {
@@ -39,6 +51,7 @@ const Navbar = () => {
     fetchUserProfile();
   }, [user]);
 
+  // Listen for profile picture updates from other components
   useEffect(() => {
     const handleProfilePictureUpdate = (event: CustomEvent) => {
       if (userProfile) {
@@ -56,29 +69,15 @@ const Navbar = () => {
     };
   }, [userProfile]);
 
+  // Determine if notifications should be shown based on user preferences (defaults to true)
   const showNotifications = userProfile?.settings?.notifications?.website ?? true;
 
+  // Show organization selector only on dashboard and organization pages
   useEffect(() => {
     setShowOrgSelector(pathname.includes('/dashboard') || pathname.includes('/organizations'));
   }, [pathname]);
 
-  useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (user?.uid) {
-        try {
-          const profile = await getUserProfile(user.uid);
-          setUserProfile(profile);
-        } catch (error) {
-          console.error('Error fetching user profile:', error);
-        }
-      } else {
-        setUserProfile(null);
-      }
-    };
-
-    fetchUserProfile();
-  }, [user]);
-
+  // Close profile dropdown when clicking outside of it
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element;
@@ -91,6 +90,7 @@ const Navbar = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isProfileOpen]);
 
+  // Track scroll position to apply background blur and shadow effects
   useEffect(() => {
     const handleScroll = () => {
       if (window.scrollY > 10) {

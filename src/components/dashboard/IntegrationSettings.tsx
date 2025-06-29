@@ -16,13 +16,30 @@ import {
   OAuthConfig
 } from '@/lib/services/integration/oauthHelpers';
 
+/**
+ * Props interface for the IntegrationSettings component
+ * Supports both viewing all integrations and managing a specific integration
+ */
 interface IntegrationSettingsProps {
-  currentUser: string;
-  integrationId?: string;
-  organizationId?: string;
-  projectId?: string;
+  currentUser: string;           // Current authenticated user identifier
+  integrationId?: string;        // Optional specific integration to manage
+  organizationId?: string;       // Optional organization context for new integrations
+  projectId?: string;            // Optional project context for new integrations
 }
 
+/**
+ * IntegrationSettings Component
+ * 
+ * Manages third-party integrations for BoostFlow, providing functionality to:
+ * - View and manage existing integrations
+ * - Connect new integrations via OAuth
+ * - Configure integration settings, credentials, and data mapping
+ * - Monitor sync history and perform manual syncs
+ * 
+ * The component operates in two modes:
+ * 1. List mode: Shows all integrations and available providers
+ * 2. Detail mode: Shows detailed settings for a specific integration
+ */
 export default function IntegrationSettings({
   currentUser,
   integrationId,
@@ -40,10 +57,17 @@ export default function IntegrationSettings({
   const [isConnecting, setIsConnecting] = useState(false);
 
   useEffect(() => {
+    /**
+     * Loads initial data for the component including:
+     * - Available integration providers (Google, GitHub, etc.)
+     * - User's existing integrations
+     * - Specific integration details if integrationId is provided
+     */
     const loadData = async () => {
       try {
         setLoading(true);
         
+        // Fetch providers and integrations in parallel for better performance
         const [providers, allIntegrations] = await Promise.all([
           getAvailableProviders(),
           getAllIntegrations()
@@ -52,6 +76,7 @@ export default function IntegrationSettings({
         setAvailableProviders(providers);
         setIntegrations(allIntegrations);
         
+        // If a specific integration is requested, load its details and switch to settings view
         if (integrationId) {
           const loadedIntegration = await getIntegration(integrationId);
           setIntegration(loadedIntegration);
@@ -68,8 +93,20 @@ export default function IntegrationSettings({
     };
 
     loadData();
-  }, [integrationId]);
+  }, [integrationId]); // Re-run when integrationId changes
 
+  /**
+   * Initiates OAuth connection flow for a third-party provider
+   * 
+   * This function handles the complex OAuth 2.0 authorization code flow:
+   * 1. Validates the provider and retrieves client credentials
+   * 2. Generates a secure state parameter for CSRF protection
+   * 3. Stores OAuth context in localStorage for callback handling
+   * 4. Constructs provider-specific authorization URL
+   * 5. Redirects user to provider's authorization page
+   * 
+   * @param provider - The integration provider (google, github, etc.)
+   */
   const handleOAuthConnect = async (provider: string) => {
     try {
       setIsConnecting(true);
@@ -78,6 +115,7 @@ export default function IntegrationSettings({
       let authUrl: string;
       let clientId: string;
       
+      // Retrieve provider-specific client ID from environment variables
       switch (provider) {
         case 'google':
           clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!;
@@ -89,19 +127,23 @@ export default function IntegrationSettings({
           throw new Error(`Unsupported provider: ${provider}`);
       }
       
+      // Generate cryptographically secure state parameter for CSRF protection
       const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
       
+      // Store OAuth context in localStorage for callback processing
       localStorage.setItem('oauth_provider', provider);
       localStorage.setItem('oauth_state', state);
       if (organizationId) localStorage.setItem('oauth_organization_id', organizationId);
       if (projectId) localStorage.setItem('oauth_project_id', projectId);
       
+      // Configure OAuth parameters
       const oauthConfig: OAuthConfig = {
         clientId,
         redirectUri: `${window.location.origin}/oauth/callback`,
         scopes: getProviderScopes(provider as any)
       };
       
+      // Generate provider-specific authorization URL
       switch (provider) {
         case 'google':
           authUrl = getGoogleOAuthUrl(oauthConfig);
@@ -113,12 +155,14 @@ export default function IntegrationSettings({
           throw new Error(`Unsupported provider: ${provider}`);
       }
       
+      // Debug logging for OAuth flow troubleshooting
       console.log('OAuth initiation debug:', {
         provider: provider,
         generatedState: state,
         authUrl: authUrl
       });
       
+      // Verify state was stored correctly (additional security check)
       const verifyState = localStorage.getItem('oauth_state');
       console.log('State verification:', {
         originalState: state,
@@ -126,6 +170,7 @@ export default function IntegrationSettings({
         statesMatch: state === verifyState
       });
       
+      // Redirect to provider's authorization page
       window.location.href = authUrl;
       
     } catch (err) {
@@ -135,11 +180,23 @@ export default function IntegrationSettings({
     }
   };
   
+  /**
+   * Deletes an integration and updates the UI state
+   * 
+   * Handles both the API call and local state cleanup:
+   * - Removes integration from server
+   * - Updates local integrations list
+   * - Navigates back to list view if currently viewing the deleted integration
+   * 
+   * @param integrationId - ID of the integration to delete
+   */
   const handleDeleteIntegration = async (integrationId: string) => {
     try {
       await deleteIntegration(integrationId);
+      // Remove from local state immediately for responsive UI
       setIntegrations(prev => prev.filter(int => int.id !== integrationId));
       
+      // If we're currently viewing the deleted integration, navigate back to list
       if (integration?.id === integrationId) {
         setIntegration(null);
         setActiveTab('list');
@@ -150,13 +207,22 @@ export default function IntegrationSettings({
     }
   };
 
+  /**
+   * Toggles the active/inactive status of the current integration
+   * 
+   * Updates both the server state and local UI state to reflect the change.
+   * Only works when an integration is currently selected.
+   */
   const toggleIntegrationActive = async () => {
     if (!integration) return;
 
     try {
+      // Toggle status
       const updatedIntegration = await updateIntegration(integration.id, {
         status: integration.status === 'active' ? 'inactive' : 'active'
       });
+      
+      // Update both the current integration and the integrations list
       setIntegration(updatedIntegration);
       setIntegrations(prev => prev.map(int => 
         int.id === updatedIntegration.id ? updatedIntegration : int
@@ -167,6 +233,15 @@ export default function IntegrationSettings({
     }
   };
 
+  /**
+   * Performs manual synchronization with the external provider
+   * 
+   * Triggers a sync operation and handles the response:
+   * - Shows loading state during sync
+   * - Displays success/error messages
+   * - Refreshes integration data on success
+   * - Auto-clears success message after 5 seconds
+   */
   const handleSync = async () => {
     if (!integration) return;
 
@@ -179,6 +254,7 @@ export default function IntegrationSettings({
       
       if (result.success) {
         setSyncMessage('Sync completed successfully!');
+        // Refresh integration data to show updated sync timestamp
         const updatedIntegration = await getIntegration(integration.id);
         if (updatedIntegration) {
           setIntegration(updatedIntegration);
@@ -191,18 +267,29 @@ export default function IntegrationSettings({
       setError('Failed to sync integration. Please try again.');
     } finally {
       setIsSyncing(false);
+      // Auto-clear success message after 5 seconds
       setTimeout(() => setSyncMessage(null), 5000);
     }
   };
 
+  // Early return for loading state
   if (loading) {
     return <div className="p-4">Loading integration settings...</div>;
   }
 
+  // Early return for error state
   if (error) {
     return <div className="p-4 text-red-500">{error}</div>;
   }
 
+  /**
+   * Renders the integrations list view showing:
+   * - User's existing integrations with status and action buttons
+   * - Available providers that can be connected
+   * - Empty state when no integrations exist
+   * 
+   * This is the default view when no specific integration is selected.
+   */
   const renderIntegrationsList = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center">

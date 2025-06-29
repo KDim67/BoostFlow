@@ -8,47 +8,70 @@ import { getUserOrganizations, createOrganization } from '@/lib/firebase/organiz
 import { Organization, OrganizationWithDetails, SubscriptionPlan } from '@/lib/types/organization';
 import Badge from '@/components/Badge';
 
+/**
+ * Organizations management page component
+ * Allows users to view, create, and manage their organizations with subscription plans
+ */
 export default function OrganizationsPage() {
+  // Organization data and UI state
   const [organizations, setOrganizations] = useState<OrganizationWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  
+  // New organization form state
   const [newOrgName, setNewOrgName] = useState('');
   const [newOrgPlan, setNewOrgPlan] = useState<SubscriptionPlan>('free');
-  const [teamSize, setTeamSize] = useState(15);
+  const [teamSize, setTeamSize] = useState(15); // Default to free plan limit
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Organization list filtering and sorting
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'plan' | 'members' | 'projects'>('name');
+  
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
+  // Base pricing per user per month in EUR
   const basePrices = {
     starter: 7.49,
     pro: 15
   };
 
+  /**
+   * Calculates the final price per user with volume and billing cycle discounts
+   * @param basePrice - Base price per user per month
+   * @returns Formatted price string with 2 decimal places
+   */
   const calculatePrice = (basePrice: number) => {
     let discount = 0;
     
+    // Volume-based discount tiers
     if (teamSize > 500) {
-      discount = 0.25;
+      discount = 0.25; // 25% discount for enterprise teams
     } else if (teamSize > 300) {
-      discount = 0.20;
+      discount = 0.20; // 20% discount for large teams
     } else if (teamSize > 100) {
-      discount = 0.15;
+      discount = 0.15; // 15% discount for medium teams
     } else if (teamSize > 50) {
-      discount = 0.10;
+      discount = 0.10; // 10% discount for growing teams
     } else if (teamSize > 20) {
-      discount = 0.05;
+      discount = 0.05; // 5% discount for small teams
     }
     
+    // Annual billing discount (17% off)
     const annualDiscount = billingCycle === 'annually' ? 0.17 : 0;
     
+    // Apply both discounts multiplicatively
     const discountedPrice = basePrice * (1 - discount) * (1 - annualDiscount);
     return discountedPrice.toFixed(2);
   };
 
+  /**
+   * Gets the current volume discount percentage for display purposes
+   * @returns Discount percentage as integer (0-25)
+   */
   const getCurrentDiscount = () => {
     if (teamSize > 500) return 25;
     if (teamSize > 300) return 20;
@@ -58,6 +81,11 @@ export default function OrganizationsPage() {
     return 0;
   };
 
+  /**
+   * Returns the feature list for each subscription plan
+   * @param plan - The subscription plan type
+   * @returns Array of feature strings for the plan
+   */
   const getPlanFeatures = (plan: SubscriptionPlan) => {
     switch (plan) {
       case 'free':
@@ -98,26 +126,37 @@ export default function OrganizationsPage() {
     }
   };
 
+  /**
+   * Gets the formatted price string for a subscription plan
+   * @param plan - The subscription plan type
+   * @returns Formatted price string with currency symbol
+   */
   const getPlanPrice = (plan: SubscriptionPlan) => {
     switch (plan) {
       case 'free': return '€0';
       case 'starter': return `€${calculatePrice(basePrices.starter)}`;
       case 'professional': return `€${calculatePrice(basePrices.pro)}`;
-      case 'enterprise': return 'Custom';
+      case 'enterprise': return 'Custom'; // Enterprise pricing is negotiated
       default: return '€0';
     }
   };
 
+  /**
+   * Gets the pricing unit text for display (e.g., "/month per user")
+   * @param plan - The subscription plan type
+   * @returns Unit text string for the plan
+   */
   const getPlanPriceUnit = (plan: SubscriptionPlan) => {
     switch (plan) {
       case 'free': return '/forever';
       case 'starter': return '/month per user';
       case 'professional': return '/month per user';
-      case 'enterprise': return '';
+      case 'enterprise': return ''; // No unit for custom pricing
       default: return '';
     }
   };
 
+  // Fetch user's organizations when authentication is complete
   useEffect(() => {
     const fetchOrganizations = async () => {
       if (!user) {
@@ -137,21 +176,28 @@ export default function OrganizationsPage() {
       }
     };
 
+    // Only fetch when auth loading is complete to avoid unnecessary calls
     if (!authLoading) {
       fetchOrganizations();
     }
   }, [user, authLoading, router]);
 
+  // Enforce free plan team size limit when plan changes
   useEffect(() => {
     if (newOrgPlan === 'free') {
-      setTeamSize(Math.min(teamSize, 15));
+      setTeamSize(Math.min(teamSize, 15)); // Free plan limited to 15 users
     }
   }, [newOrgPlan]);
 
+  /**
+   * Handles organization creation form submission
+   * Validates plan limits, calculates pricing, and creates the organization
+   */
   const handleCreateOrganization = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     
+    // Validate free plan team size limit
     if (newOrgPlan === 'free' && teamSize > 15) {
       setError('Free plan is limited to 15 users. Please reduce team size or choose a different plan.');
       return;
@@ -161,18 +207,20 @@ export default function OrganizationsPage() {
       setIsCreating(true);
       setError(null);
       
+      // Calculate subscription details with current pricing and discounts
       const subscriptionDetails = {
         teamSize,
         billingCycle,
         pricePerUser: newOrgPlan === 'starter' ? parseFloat(calculatePrice(basePrices.starter)) : 
                      newOrgPlan === 'professional' ? parseFloat(calculatePrice(basePrices.pro)) : 0,
         totalPrice: newOrgPlan === 'free' ? 0 : 
-                   newOrgPlan === 'enterprise' ? 0 : 
+                   newOrgPlan === 'enterprise' ? 0 : // Enterprise pricing is custom
                    parseFloat(calculatePrice(newOrgPlan === 'starter' ? basePrices.starter : basePrices.pro)) * teamSize,
         subscribedAt: new Date().toISOString(),
         discount: getCurrentDiscount()
       };
       
+      // Create organization and redirect to its page
       const orgId = await createOrganization(user, {
         name: newOrgName,
         plan: newOrgPlan,
@@ -192,14 +240,15 @@ export default function OrganizationsPage() {
 
 
 
+  // Filter organizations by search term and sort by selected criteria
   const filteredAndSortedOrganizations = organizations
     .filter(org => org.name.toLowerCase().includes(searchTerm.toLowerCase()))
     .sort((a, b) => {
       switch (sortBy) {
-        case 'name': return a.name.localeCompare(b.name);
-        case 'plan': return a.plan.localeCompare(b.plan);
-        case 'members': return (b.memberCount || 0) - (a.memberCount || 0);
-        case 'projects': return (b.projectCount || 0) - (a.projectCount || 0);
+        case 'name': return a.name.localeCompare(b.name); // Alphabetical sort
+        case 'plan': return a.plan.localeCompare(b.plan); // Plan type sort
+        case 'members': return (b.memberCount || 0) - (a.memberCount || 0); // Descending member count
+        case 'projects': return (b.projectCount || 0) - (a.projectCount || 0); // Descending project count
         default: return 0;
       }
     });

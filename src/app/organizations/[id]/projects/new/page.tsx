@@ -8,37 +8,67 @@ import { getOrganization, hasOrganizationPermission } from '@/lib/firebase/organ
 import { createDocument } from '@/lib/firebase/firestoreService';
 import { Organization } from '@/lib/types/organization';
 
-
+/**
+ * NewProjectPage Component
+ * 
+ * A comprehensive project creation page that allows users to:
+ * - Create new projects within an organization
+ * - Use AI-powered project generation for automated setup
+ * - Set project details including dates, budget, and client information
+ * - Automatically assign team members (organization owner and project creator)
+ * 
+ * Features:
+ * - Permission-based access control
+ * - AI integration for project suggestions
+ * - Form validation and error handling
+ */
 export default function NewProjectPage() {
+  // Extract organization ID from URL parameters
   const { id } = useParams();
+  
+  // State management for component data and UI states
   const [organization, setOrganization] = useState<Organization | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [showAiSection, setShowAiSection] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Loading state for initial data fetch
+  const [isSubmitting, setIsSubmitting] = useState(false); // Form submission state
+  const [error, setError] = useState<string | null>(null); // Error message display
+  
+  // AI-related state management
+  const [aiPrompt, setAiPrompt] = useState(''); // User input for AI project generation
+  const [isGenerating, setIsGenerating] = useState(false); // AI generation loading state
+  const [showAiSection, setShowAiSection] = useState(false); // Toggle AI section visibility
+  
+  // Form data state with default values
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    status: 'planning',
+    status: 'planning', // Default status for new projects
     startDate: '',
     dueDate: '',
     client: '',
     budget: '',
   });
+  
+  // Authentication and navigation hooks
   const { user } = useAuth();
   const router = useRouter();
+  
+  // Handle array or string organization ID from URL params
   const organizationId = Array.isArray(id) ? id[0] : id;
 
+  /**
+   * Effect hook to fetch organization data and verify user permissions
+   * Runs when user or organizationId changes
+   */
   useEffect(() => {
     const fetchOrganizationData = async () => {
+      // Early return if required data is missing
       if (!user || !organizationId) return;
       
       try {
         setIsLoading(true);
         setError(null);
         
+        // Check if user has minimum 'member' permission to create projects
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'member');
         
         if (!permission) {
@@ -47,6 +77,7 @@ export default function NewProjectPage() {
           return;
         }
         
+        // Fetch organization details for display
         const orgData = await getOrganization(organizationId);
         setOrganization(orgData);
       } catch (error) {
@@ -60,6 +91,10 @@ export default function NewProjectPage() {
     fetchOrganizationData();
   }, [user, organizationId]);
 
+  /**
+   * Generic form input handler for all form fields
+   * Updates formData state with new values while preserving other fields
+   */
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -68,13 +103,24 @@ export default function NewProjectPage() {
     }));
   };
 
+  /**
+   * AI-powered project generation function
+   * Sends user prompt to AI service and populates form with generated suggestions
+   * 
+   * Side effects:
+   * - Updates form data with AI suggestions
+   * - Hides AI section and clears prompt on success
+   * - Shows error message on failure
+   */
   const generateProjectWithAI = async () => {
+    // Validate that prompt is not empty
     if (!aiPrompt.trim()) return;
 
     try {
       setIsGenerating(true);
       setError(null);
 
+      // Call AI project generator API with user prompt and organization context
       const response = await fetch('/api/ai/project-generator', {
         method: 'POST',
         headers: {
@@ -92,6 +138,7 @@ export default function NewProjectPage() {
 
       const suggestion = await response.json();
 
+      // Update form with AI-generated suggestions, preserving existing values as fallback
       setFormData(prev => ({
         ...prev,
         name: suggestion.name || '',
@@ -99,6 +146,7 @@ export default function NewProjectPage() {
         status: suggestion.suggestedStatus || 'planning'
       }));
 
+      // Clean up AI section after successful generation
       setShowAiSection(false);
       setAiPrompt('');
     } catch (error) {
@@ -109,28 +157,43 @@ export default function NewProjectPage() {
     }
   };
 
+  /**
+   * Form submission handler for project creation
+   * 
+   * Process:
+   * 1. Creates the project document in Firestore
+   * 2. Automatically adds organization owner as Project Manager (if different from creator)
+   * 3. Adds project creator as Project Lead
+   * 4. Redirects to the newly created project page
+   * 
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate required dependencies
     if (!user || !organization) return;
     
     try {
       setIsSubmitting(true);
       setError(null);
       
+      // Prepare project data with metadata
       const projectData = {
         ...formData,
         organizationId,
         createdBy: user.uid,
         createdAt: new Date(),
         updatedAt: new Date(),
-        progress: 0,
+        progress: 0, // Initialize project progress
       };
       
+      // Create project document and get generated ID
       const projectId = await createDocument('projects', projectData);
       
+      // Automatically set up initial team members
       if (organizationId && projectId) {
         try {
+          // Dynamic imports to reduce initial bundle size
           const { getOrganizationMembers } = await import('@/lib/firebase/organizationService');
           const { createDocument: createTeamDocument } = await import('@/lib/firebase/firestoreService');
           const { serverTimestamp } = await import('firebase/firestore');
@@ -138,12 +201,13 @@ export default function NewProjectPage() {
           const orgMembers = await getOrganizationMembers(organizationId);
           const owner = orgMembers.find(member => member.role === 'owner');
 
+          // Add organization owner as Project Manager
           if (owner && owner.userId !== user.uid) {
             const ownerTeamData = {
               name: owner.userProfile?.displayName || owner.userProfile?.email || 'Organization Owner',
               email: owner.userProfile?.email || '',
               photoURL: owner.userProfile?.photoURL,
-              role: 'Project Manager',
+              role: 'Project Manager', // Owner gets manager role by default
               organizationId,
               projectId,
               userId: owner.userId,
@@ -153,11 +217,12 @@ export default function NewProjectPage() {
             await createTeamDocument('team', ownerTeamData);
           }
 
+          // Add project creator as Project Lead
           const creatorTeamData = {
             name: user.displayName || user.email || 'Project Creator',
             email: user.email || '',
             photoURL: user.photoURL,
-            role: 'Project Lead',
+            role: 'Project Lead', // Creator gets lead role by default
             organizationId,
             projectId,
             userId: user.uid,
@@ -167,15 +232,18 @@ export default function NewProjectPage() {
           await createTeamDocument('team', creatorTeamData);
 
         } catch (teamError) {
+          // Non-critical error: project created successfully but team setup failed
           console.error('Error adding automatic team members:', teamError);
+          // Continue with redirect despite team setup failure
         }
       }
 
+      // Navigate to the newly created project page
       router.push(`/organizations/${organizationId}/projects/${projectId}`);
     } catch (error) {
       console.error('Error creating project:', error);
       setError('Failed to create project. Please try again.');
-      setIsSubmitting(false);
+      setIsSubmitting(false); // Re-enable form on error
     }
   };
 
@@ -280,6 +348,7 @@ export default function NewProjectPage() {
                 value={aiPrompt}
                 onChange={(e) => {
                   const value = e.target.value;
+                  // Enforce 500 character limit for AI prompt
                   if (value.length <= 500) {
                     setAiPrompt(value);
                   }
@@ -404,7 +473,7 @@ export default function NewProjectPage() {
                 id="dueDate"
                 name="dueDate"
                 value={formData.dueDate}
-                min={formData.startDate || undefined}
+                min={formData.startDate || undefined} // Prevent due date before start date
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               />

@@ -10,48 +10,80 @@ import { Organization } from '@/lib/types/organization';
 import { useFileUpload } from '@/lib/hooks/useFileUpload';
 import Badge from '@/components/Badge';
 
+/**
+ * OrganizationLayout - Layout component for organization pages
+ * 
+ * Provides a consistent layout structure for all organization-related pages including:
+ * - Authentication and permission checks
+ * - Organization header with logo and metadata
+ * - Breadcrumb navigation
+ * - Logo upload functionality for authorized users
+ * 
+ * @param children - Child components to render within the layout
+ */
+
 export default function OrganizationLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Extract organization ID from URL parameters
   const { id } = useParams();
+  
+  // State management for organization data and UI
   const [organization, setOrganization] = useState<Organization | null>(null);
-  const [activeTab, setActiveTab] = useState('projects');
+  const [activeTab, setActiveTab] = useState('projects'); // Currently unused but reserved for future tabs
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [showImageUpload, setShowImageUpload] = useState(false);
+  
+  // External hooks for authentication and file operations
   const { user, loading: authLoading } = useAuth();
   const { uploading, uploadOrganizationLogo } = useFileUpload();
+  
+  // Project-specific state for breadcrumb navigation
   const [projectName, setProjectName] = useState<string>('');
   const router = useRouter();
   const pathname = usePathname();
+  
+  // Handle both string and array ID formats from Next.js params
   const organizationId = Array.isArray(id) ? id[0] : id;
 
+  // Determine if current page is a project detail page for breadcrumb logic
   const isProjectPage = pathname?.includes('/projects/') && pathname?.split('/').length > 4;
   const projectId = isProjectPage ? pathname?.split('/')[4] : null;
 
+  // Main data fetching effect - runs when authentication completes
   useEffect(() => {
+    /**
+     * Fetches organization data and validates user permissions
+     * Also fetches project name if on a project detail page for breadcrumbs
+     */
     const fetchOrganizationData = async () => {
+      // Wait for user authentication and organization ID
       if (!user || !organizationId) return;
       
       try {
         setIsLoading(true);
         setError(null);
         
+        // Check if user has at least viewer permission for this organization
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'viewer');
         setHasPermission(permission);
         
+        // Early return if user lacks permission
         if (!permission) {
           setError('You do not have permission to view this organization.');
           setIsLoading(false);
           return;
         }
 
+        // Fetch organization details
         const orgData = await getOrganization(organizationId);
         setOrganization(orgData);
 
+        // If on a project page, fetch project name for breadcrumb display
         if (isProjectPage && projectId) {
           const projectData = await getDocument('projects', projectId);
           if (projectData) {
@@ -66,6 +98,7 @@ export default function OrganizationLayout({
       }
     };
 
+    // Only fetch data after authentication is complete
     if (!authLoading) {
       fetchOrganizationData();
     }
@@ -83,6 +116,7 @@ export default function OrganizationLayout({
     );
   }
 
+  // Redirect unauthenticated users to login with clear messaging
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center items-center">
@@ -123,6 +157,10 @@ export default function OrganizationLayout({
     );
   }
 
+  /**
+   * Handles organization logo upload with success/error callbacks
+   * Updates local state and dispatches global event for cross-component updates
+   */
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !organizationId) return;
@@ -130,6 +168,7 @@ export default function OrganizationLayout({
     try {
       const result = await uploadOrganizationLogo(file, organizationId, {
         onSuccess: (result) => {
+          // Update local organization state with new logo URL
           if (organization) {
             setOrganization({
               ...organization,

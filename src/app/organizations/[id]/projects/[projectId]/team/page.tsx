@@ -9,31 +9,43 @@ import { queryDocuments, createDocument, deleteDocument } from '@/lib/firebase/f
 import { where, serverTimestamp } from 'firebase/firestore';
 import { Organization, OrganizationMembership } from '@/lib/types/organization';
 
+// Interface defining the structure of a team member within a project
 interface TeamMember {
   id: string;
   name: string;
-  role: string;
+  role: string; // Project-specific role (e.g., Developer, Designer)
   email: string;
-  photoURL?: string;
+  photoURL?: string; // Optional profile picture URL
   organizationId: string;
   projectId: string;
-  userId: string;
-  createdBy: string;
-  createdAt: any;
+  userId: string; // Reference to the user's Firebase UID
+  createdBy: string; // UID of the user who added this member to the team
+  createdAt: any; // Firestore timestamp
 }
 
+/**
+ * Team management page for a specific project within an organization.
+ * Allows viewing, adding, and removing team members from a project.
+ */
 export default function OrganizationProjectsTeam() {
+  // Extract route parameters (organization ID and project ID)
   const { id, projectId } = useParams();
+  
+  // State management for component data
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [organizationMembers, setOrganizationMembers] = useState<OrganizationMembership[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
   const { user } = useAuth();
+  
+  // Handle potential array values from Next.js dynamic routes
   const organizationId = Array.isArray(id) ? id[0] : id;
   const currentProjectId = Array.isArray(projectId) ? projectId[0] : projectId;
 
+  // Fetch team data on component mount and when dependencies change
   useEffect(() => {
     const fetchTeamData = async () => {
       if (!user || !organizationId) return;
@@ -42,6 +54,7 @@ export default function OrganizationProjectsTeam() {
         setIsLoading(true);
         setError(null);
         
+        // Check if user has permission to view this organization
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'viewer');
         
         if (!permission) {
@@ -50,15 +63,18 @@ export default function OrganizationProjectsTeam() {
           return;
         }
         
+        // Fetch organization details
         const orgData = await getOrganization(organizationId);
         setOrganization(orgData);
         
+        // Fetch team members for this specific project
         const teamData = await queryDocuments('team', [
           where('organizationId', '==', organizationId),
           where('projectId', '==', currentProjectId)
         ]);
         setTeamMembers(teamData as TeamMember[]);
         
+        // Fetch all organization members for the invite modal
         const orgMembers = await getOrganizationMembers(organizationId);
         setOrganizationMembers(orgMembers);
       } catch (error) {
@@ -80,6 +96,7 @@ export default function OrganizationProjectsTeam() {
     );
   }
 
+  // Error state or organization not found
   if (error || !organization) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 max-w-2xl mx-auto">
@@ -164,12 +181,14 @@ export default function OrganizationProjectsTeam() {
                     <p className="text-sm text-gray-500 dark:text-gray-400">{member.role}</p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">{member.email}</p>
                   </div>
+                  {/* Remove team member button with confirmation */}
                   <button 
                     className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
                     onClick={async () => {
                       if (confirm(`Are you sure you want to remove ${member.name} from the team?`)) {
                         try {
                           await deleteDocument('team', member.id);
+                          // Update local state to reflect the removal
                           setTeamMembers(teamMembers.filter(m => m.id !== member.id));
                         } catch (error) {
                           console.error('Error removing team member:', error);
@@ -206,28 +225,38 @@ export default function OrganizationProjectsTeam() {
   );
 }
 
+// Props interface for the invite team member modal component
 interface InviteTeamMemberModalProps {
   isOpen: boolean;
   onClose: () => void;
   organizationId: string | undefined;
   projectId: string | undefined;
-  organizationMembers: OrganizationMembership[];
-  existingTeamMembers: TeamMember[];
-  onMemberInvited: (member: TeamMember) => void;
+  organizationMembers: OrganizationMembership[]; // All members of the organization
+  existingTeamMembers: TeamMember[]; // Current project team members
+  onMemberInvited: (member: TeamMember) => void; // Callback when a new member is added
 }
 
+/**
+ * Modal component for inviting organization members to join a project team.
+ * Filters out members who are already part of the team.
+ */
 function InviteTeamMemberModal({ isOpen, onClose, organizationId, projectId, organizationMembers, existingTeamMembers, onMemberInvited }: InviteTeamMemberModalProps) {
+  // Early return if required props are missing
   if (!organizationId || !projectId) return null;
+  
+  // Form state management
   const [selectedMemberId, setSelectedMemberId] = useState('');
   const [role, setRole] = useState('Developer');
   const [customRole, setCustomRole] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user } = useAuth();
   
+  // Filter organization members to exclude those already on the team
   const availableMembers = organizationMembers.filter(orgMember => 
     !existingTeamMembers.some(teamMember => teamMember.userId === orgMember.userId)
   );
 
+  // Handle form submission to add a new team member
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -236,14 +265,16 @@ function InviteTeamMemberModal({ isOpen, onClose, organizationId, projectId, org
     try {
       setIsSubmitting(true);
       
+      // Find the selected organization member
       const selectedMember = organizationMembers.find(m => m.userId === selectedMemberId);
       if (!selectedMember) return;
       
+      // Prepare team member data for Firestore
       const memberData = {
         name: selectedMember.userProfile?.displayName || selectedMember.userProfile?.email || 'Unknown',
         email: selectedMember.userProfile?.email || '',
         photoURL: selectedMember.userProfile?.photoURL,
-        role: role === 'Custom' ? customRole : role,
+        role: role === 'Custom' ? customRole : role, // Use custom role if specified
         organizationId,
         projectId,
         userId: selectedMember.userId,
@@ -251,13 +282,16 @@ function InviteTeamMemberModal({ isOpen, onClose, organizationId, projectId, org
         createdAt: serverTimestamp(),
       };
       
+      // Save to Firestore
       await createDocument('team', memberData);
       
+      // Reset form state
       setSelectedMemberId('');
       setRole('Developer');
       setCustomRole('');
       onClose();
       
+      // Update parent component state with temporary ID for immediate UI update
       onMemberInvited({
         id: `temp-${Date.now()}`,
         ...memberData,
@@ -270,6 +304,7 @@ function InviteTeamMemberModal({ isOpen, onClose, organizationId, projectId, org
     }
   };
 
+  // Don't render modal if not open
   if (!isOpen) return null;
 
   return (

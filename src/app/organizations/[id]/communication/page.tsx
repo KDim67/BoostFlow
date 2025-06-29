@@ -14,24 +14,40 @@ import { getOrganizationMembers } from '@/lib/firebase/organizationService';
 import { OrganizationMembership } from '@/lib/types/organization';
 import Badge from '@/components/Badge';
 
+/**
+ * Communication hub page component for organization collaboration
+ * Displays channels and direct messaging interface for team communication
+ */
 export default function CommunicationPage() {
+  // Extract organization ID from URL parameters
   const { id } = useParams();
   const router = useRouter();
   const { user } = useAuth();
+  // Handle both string and array parameter formats from Next.js dynamic routes
   const organizationId = Array.isArray(id) ? id[0] : id;
   
+  // Channel management state
   const [channels, setChannels] = useState<Channel[]>([]);
+  // Member management and search functionality
   const [members, setMembers] = useState<OrganizationMembership[]>([]);
   const [filteredMembers, setFilteredMembers] = useState<OrganizationMembership[]>([]);
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  // UI state management
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Channel creation modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelDescription, setNewChannelDescription] = useState('');
   const [newChannelType, setNewChannelType] = useState<'public' | 'private'>('public');
   const [isCreating, setIsCreating] = useState(false);
 
+  /**
+   * Generate user initials for avatar display
+   * Prioritizes display name, falls back to first/last name combination, then email
+   * @param profile - User profile object containing name and email information
+   * @returns Two-character initials or single character, defaults to 'U'
+   */
   const getInitials = (profile: any) => {
     const displayName = profile?.displayName || 
       `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim();
@@ -39,19 +55,26 @@ export default function CommunicationPage() {
     
     if (displayName) {
       const names = displayName.trim().split(' ');
+      // Use first and last name initials if available
       if (names.length >= 2) {
         return (names[0][0] + names[names.length - 1][0]).toUpperCase();
       }
       return displayName[0].toUpperCase();
     }
     
+    // Fallback to email first character
     if (email) {
       return email[0].toUpperCase();
     }
     
+    // Default fallback
     return 'U';
   };
 
+  /**
+   * Load initial data when component mounts or dependencies change
+   * Fetches channels and organization members with permission validation
+   */
   useEffect(() => {
     const fetchData = async () => {
       if (!user || !organizationId) return;
@@ -60,18 +83,21 @@ export default function CommunicationPage() {
         setIsLoading(true);
         setError(null);
         
+        // Verify user has at least viewer permission for the organization
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'viewer');
         if (!permission) {
           setError('You do not have permission to view this organization.');
           return;
         }
         
+        // Fetch channels and members concurrently for better performance
         const [channelsData, membersData] = await Promise.all([
           getChannelsByOrganizationForUser(organizationId, user.uid),
           getOrganizationMembers(organizationId)
         ]);
         
         setChannels(channelsData);
+        // Filter out inactive members and current user from direct message list
         const activeMembers = membersData.filter(member => 
           member.status === 'active' && member.userId !== user.uid
         );
@@ -88,6 +114,10 @@ export default function CommunicationPage() {
     fetchData();
   }, [user, organizationId]);
 
+  /**
+   * Filter members based on search query
+   * Searches across multiple profile fields for comprehensive matching
+   */
   useEffect(() => {
     if (!memberSearchQuery.trim()) {
       setFilteredMembers(members);
@@ -103,6 +133,7 @@ export default function CommunicationPage() {
         const email = profile.email?.toLowerCase() || '';
         const jobTitle = profile.jobTitle?.toLowerCase() || '';
         
+        // Search across all relevant profile fields for comprehensive matching
         return displayName.includes(query) ||
                firstName.includes(query) ||
                lastName.includes(query) ||
@@ -114,30 +145,38 @@ export default function CommunicationPage() {
     }
   }, [memberSearchQuery, members]);
 
+  /**
+   * Handle channel creation process
+   * Creates new channel and navigates user to the channel page
+   */
   const handleCreateChannel = async () => {
     if (!user || !organizationId || !newChannelName.trim()) return;
     
     try {
       setIsCreating(true);
       
+      // Prepare channel data with creator as initial member
       const channelData = {
         name: newChannelName.trim(),
         description: newChannelDescription.trim(),
         type: newChannelType,
         organizationId,
         createdBy: user.uid,
-        memberIds: [user.uid],
+        memberIds: [user.uid], // Creator is automatically added as member
         isArchived: false
       };
       
       const newChannel = await createChannel(channelData);
+      // Add new channel to the beginning of the list for immediate visibility
       setChannels(prev => [newChannel, ...prev]);
       
+      // Reset form state
       setNewChannelName('');
       setNewChannelDescription('');
       setNewChannelType('public');
       setShowCreateModal(false);
       
+      // Navigate to the newly created channel
       router.push(`/organizations/${organizationId}/communication/channels/${newChannel.id}`);
     } catch (error) {
       console.error('Error creating channel:', error);

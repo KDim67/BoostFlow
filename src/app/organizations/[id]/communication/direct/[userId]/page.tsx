@@ -1,54 +1,89 @@
 'use client';
 
+// React hooks for state management, lifecycle, and DOM references
 import { useState, useEffect, useRef } from 'react';
+// Next.js navigation hooks for routing and URL parameters
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+// Custom authentication hook
 import { useAuth } from '@/lib/firebase/useAuth';
+// Organization permission validation service
 import { hasOrganizationPermission } from '@/lib/firebase/organizationService';
+// User profile data retrieval service
 import { getUserProfile } from '@/lib/firebase/userProfileService';
+// Communication services for messaging functionality
 import { 
   sendMessage,
   Message,
   getOrCreateDirectMessageChannel
 } from '@/lib/services/collaboration/communicationService';
+// Date formatting utility
 import { formatDistanceToNow } from 'date-fns';
+// Firestore database utilities
 import { queryDocuments, timestampToDate, getCollectionRef } from '@/lib/firebase/firestoreService';
+// Firestore query operators and real-time subscription types
 import { where, orderBy, query, onSnapshot, Unsubscribe } from 'firebase/firestore';
 
+/**
+ * DirectMessagePage Component
+ * 
+ * Renders a real-time direct messaging interface between two users within an organization.
+ * Features include message history, real-time updates, typing indicators, and message sending.
+ */
 export default function DirectMessagePage() {
+  // Extract URL parameters for organization and user IDs
   const { id, userId } = useParams();
   const router = useRouter();
   const { user } = useAuth();
+  
+  // Normalize URL parameters (handle both string and array formats)
   const organizationId = Array.isArray(id) ? id[0] : id;
   const otherUserId = Array.isArray(userId) ? userId[0] : userId;
   
-  const [otherUser, setOtherUser] = useState<any>(null);
-  const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [newMessage, setNewMessage] = useState('');
-  const [isSending, setIsSending] = useState(false);
+  // User profile states
+  const [otherUser, setOtherUser] = useState<any>(null); // Profile of the user being messaged
+  const [currentUserProfile, setCurrentUserProfile] = useState<any>(null); // Current user's profile
+  
+  // Message and UI states
+  const [messages, setMessages] = useState<Message[]>([]); // Array of conversation messages
+  const [isLoading, setIsLoading] = useState(true); // Loading state for initial data fetch
+  const [error, setError] = useState<string | null>(null); // Error message display
+  const [newMessage, setNewMessage] = useState(''); // Current message being typed
+  const [isSending, setIsSending] = useState(false); // Prevents duplicate sends
 
-  const [isTyping, setIsTyping] = useState(false);
-  const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
-  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const unsubscribeRef = useRef<Unsubscribe | null>(null);
+  // Typing indicator states
+  const [isTyping, setIsTyping] = useState(false); // Shows typing indicator
+  const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null); // Debounce typing status
+  
+  // Scroll behavior state
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false); // Shows scroll-to-bottom button
+  
+  // DOM element references
+  const messagesEndRef = useRef<HTMLDivElement>(null); // Reference for auto-scrolling to bottom
+  const textareaRef = useRef<HTMLTextAreaElement>(null); // Reference for message input field
+  const messagesContainerRef = useRef<HTMLDivElement>(null); // Reference for scroll detection
+  const unsubscribeRef = useRef<Unsubscribe | null>(null); // Reference to Firestore subscription cleanup
 
+  /**
+   * Smoothly scrolls the messages container to the bottom
+   * and hides the scroll-to-bottom button
+   */
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     setShowScrollToBottom(false);
   };
 
+  /**
+   * Generates user initials for avatar display
+   * Priority: displayName (first + last initial) > email (first char) > 'U' fallback
+   */
   const getInitials = (user: any) => {
     const displayName = user?.displayName;
     const email = user?.email;
     
     if (displayName) {
-      const names = displayName.trim().split(' ');
+      const names = displayName.split(' ').filter(Boolean);
+      // Use first and last name initials if available
       if (names.length >= 2) {
         return (names[0][0] + names[names.length - 1][0]).toUpperCase();
       }
@@ -59,9 +94,13 @@ export default function DirectMessagePage() {
       return email[0].toUpperCase();
     }
     
-    return 'U';
+    return 'U'; // Default fallback
   };
 
+  /**
+   * Handles scroll events to show/hide the scroll-to-bottom button
+   * Shows button when user scrolls up more than 100px from bottom
+   */
   const handleScroll = () => {
     if (messagesContainerRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
@@ -70,24 +109,32 @@ export default function DirectMessagePage() {
     }
   };
 
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
+  /**
+   * Main effect for setting up real-time message subscription
+   * Handles: permission validation, user profile fetching, and Firestore real-time updates
+   */
   useEffect(() => {
     const setupRealtimeMessages = async () => {
+      // Early return if required data is missing
       if (!user || !organizationId || !otherUserId) return;
       
       try {
         setIsLoading(true);
         setError(null);
         
+        // Verify user has permission to access this organization
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'viewer');
         if (!permission) {
           setError('You do not have permission to view this organization.');
           return;
         }
         
+        // Fetch the profile of the user being messaged
         const userProfile = await getUserProfile(otherUserId);
         if (!userProfile) {
           setError('User not found.');
@@ -95,25 +142,29 @@ export default function DirectMessagePage() {
         }
         setOtherUser(userProfile);
         
-        // Fetch current user's profile
+        // Fetch current user's profile for message display
         const currentProfile = await getUserProfile(user.uid);
         setCurrentUserProfile(currentProfile);
         
+        // Create deterministic conversation ID by sorting user IDs
         const conversationId = [user.uid, otherUserId].sort().join('_');
         
+        // Set up real-time Firestore query for messages
         const messagesRef = getCollectionRef('messages');
         const q = query(
           messagesRef,
           where('channelId', '==', conversationId),
-          orderBy('createdAt', 'asc')
+          orderBy('createdAt', 'asc') // Chronological order
         );
         
+        // Subscribe to real-time updates
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
           const messagesData: any[] = [];
           querySnapshot.forEach((doc) => {
             messagesData.push({ id: doc.id, ...doc.data() });
           });
           
+          // Convert Firestore timestamps to JavaScript Date objects
           const convertedMessages = messagesData.map(msg => ({
             ...msg,
             createdAt: timestampToDate(msg.createdAt) || new Date(),
@@ -128,6 +179,7 @@ export default function DirectMessagePage() {
           setIsLoading(false);
         });
         
+        // Store unsubscribe function for cleanup
         unsubscribeRef.current = unsubscribe;
         
       } catch (error) {
@@ -139,23 +191,32 @@ export default function DirectMessagePage() {
 
     setupRealtimeMessages();
     
+    // Cleanup: unsubscribe from Firestore listener on component unmount
     return () => {
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
         unsubscribeRef.current = null;
       }
     };
-  }, [user, organizationId, otherUserId]);
+  }, [user, organizationId, otherUserId]); // Re-run when these dependencies change
 
+  /**
+   * Handles sending a new message
+   * Creates/ensures channel exists, sends message, and resets input state
+   */
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !user || !organizationId || !otherUserId) return;
+    // Validation: ensure message content and required data exist
+    if (!newMessage.trim() || !user || !organizationId || !otherUserId || isSending) return;
 
     try {
       setIsSending(true);
+      // Use same conversation ID generation logic as subscription
       const conversationId = [user.uid, otherUserId].sort().join('_');
 
+      // Ensure the direct message channel exists in the database
       await getOrCreateDirectMessageChannel(user.uid, otherUserId, organizationId);
 
+      // Prepare message data for Firestore
       const messageData = {
         channelId: conversationId,
         author: user.uid,
@@ -164,8 +225,9 @@ export default function DirectMessagePage() {
       };
 
       await sendMessage(messageData);
-      setNewMessage('');
+      setNewMessage(''); // Clear input after successful send
       
+      // Reset textarea height to default
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
       }
@@ -177,6 +239,10 @@ export default function DirectMessagePage() {
     }
   };
 
+  /**
+   * Handles Enter key press to send message
+   * Enter alone sends, Shift+Enter creates new line
+   */
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -184,21 +250,29 @@ export default function DirectMessagePage() {
     }
   };
 
+  /**
+   * Handles textarea input changes
+   * Features: auto-resize, typing indicator with debounce
+   */
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNewMessage(e.target.value);
     
+    // Auto-resize textarea based on content (max 120px height)
     const textarea = e.target;
     textarea.style.height = 'auto';
     textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
     
+    // Show typing indicator
     if (!isTyping) {
       setIsTyping(true);
     }
     
+    // Clear existing timeout to debounce typing indicator
     if (typingTimeout) {
       clearTimeout(typingTimeout);
     }
     
+    // Hide typing indicator after 1 second of inactivity
     const timeout = setTimeout(() => {
       setIsTyping(false);
     }, 1000);
@@ -208,6 +282,12 @@ export default function DirectMessagePage() {
 
 
   
+  /**
+   * Formats message timestamps based on age
+   * - < 24 hours: time only (e.g., "2:30 PM")
+   * - < 7 days: weekday + time (e.g., "Mon 2:30 PM")
+   * - > 7 days: date + time (e.g., "Jan 15 2:30 PM")
+   */
   const formatMessageTime = (date: Date) => {
     const now = new Date();
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
@@ -232,6 +312,7 @@ export default function DirectMessagePage() {
     );
   }
 
+  // Error state: show error message with navigation back to communication hub
   if (error || !otherUser) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-8">
@@ -344,6 +425,7 @@ export default function DirectMessagePage() {
             </p>
           </div>
         ) : (
+          // Message list: Render each message with conditional styling and grouping
           messages.map((message, index) => {
             const showAvatar = index === 0 || messages[index - 1].author !== message.author;
             const isCurrentUser = message.author === user?.uid;

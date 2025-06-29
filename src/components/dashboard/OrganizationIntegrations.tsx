@@ -22,10 +22,22 @@ import {
 } from '@/lib/services/integration/oauthHelpers';
 import Badge from '@/components/Badge';
 
+/**
+ * Props interface for the OrganizationIntegrations component
+ * @param currentUser - The current user's identifier
+ * @param organizationId - The ID of the organization to manage integrations for
+ */
+
 interface OrganizationIntegrationsProps {
   currentUser: string;
   organizationId: string;
 }
+
+/**
+ * OrganizationIntegrations component manages third-party integrations for an organization.
+ * Handles OAuth connections, integration management, and synchronization with external services.
+ * Requires admin permissions to access and modify organization integrations.
+ */
 
 export default function OrganizationIntegrations({
   currentUser,
@@ -42,6 +54,10 @@ export default function OrganizationIntegrations({
   const [isConnecting, setIsConnecting] = useState(false);
   const { user } = useAuth();
 
+  /**
+   * Load integration data on component mount and when dependencies change.
+   * Verifies user permissions before loading organization-specific integrations.
+   */
   useEffect(() => {
     const loadData = async () => {
       if (!user || !organizationId) return;
@@ -50,6 +66,7 @@ export default function OrganizationIntegrations({
         setLoading(true);
         setError(null);
         
+        // Check if user has admin permissions for this organization
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'admin');
         
         if (!permission) {
@@ -58,12 +75,14 @@ export default function OrganizationIntegrations({
           return;
         }
         
+        // Fetch available providers and all integrations in parallel for efficiency
         const [providers, allIntegrations] = await Promise.all([
           getAvailableProviders(),
           getAllIntegrations()
         ]);
         
         setAvailableProviders(providers);
+        // Filter integrations to only show those belonging to this organization
         const orgIntegrations = allIntegrations.filter(int => 
           int.config?.organizationId === organizationId
         );
@@ -81,6 +100,11 @@ export default function OrganizationIntegrations({
     loadData();
   }, [user, organizationId]);
 
+  /**
+   * Initiates OAuth connection flow for a specific provider (Google, GitHub, etc.).
+   * Stores necessary state in localStorage and redirects to provider's OAuth URL.
+   * @param provider - The integration provider to connect to
+   */
   const handleOAuthConnect = async (provider: string) => {
     try {
       setIsConnecting(true);
@@ -89,6 +113,7 @@ export default function OrganizationIntegrations({
       let authUrl: string;
       let clientId: string;
       
+      // Get client ID based on provider type
       switch (provider) {
         case 'google':
           clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!;
@@ -100,8 +125,10 @@ export default function OrganizationIntegrations({
           throw new Error(`Unsupported provider: ${provider}`);
       }
       
+      // Generate random state for CSRF protection
       const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
       
+      // Store OAuth context in localStorage for callback handling
       localStorage.setItem('oauth_provider', provider);
       localStorage.setItem('oauth_state', state);
       localStorage.setItem('oauth_organization_id', organizationId);
@@ -113,6 +140,7 @@ export default function OrganizationIntegrations({
         scopes: getProviderScopes(provider as any)
       };
       
+      // Generate provider-specific OAuth URL
       switch (provider) {
         case 'google':
           authUrl = getGoogleOAuthUrl(oauthConfig);
@@ -124,6 +152,7 @@ export default function OrganizationIntegrations({
           throw new Error(`Unsupported provider: ${provider}`);
       }
       
+      // Redirect to OAuth provider
       window.location.href = authUrl;
       
     } catch (err) {
@@ -133,11 +162,18 @@ export default function OrganizationIntegrations({
     }
   };
   
+  /**
+   * Deletes an integration and updates the UI state.
+   * If the deleted integration is currently selected, clears the selection.
+   * @param integrationId - The ID of the integration to delete
+   */
   const handleDeleteIntegration = async (integrationId: string) => {
     try {
       await deleteIntegration(integrationId);
+      // Remove from local state
       setIntegrations(prev => prev.filter(int => int.id !== integrationId));
       
+      // Clear selection if deleted integration was currently selected
       if (integration?.id === integrationId) {
         setIntegration(null);
         setActiveTab('list');
@@ -148,14 +184,20 @@ export default function OrganizationIntegrations({
     }
   };
 
+  /**
+   * Toggles the active/inactive status of the currently selected integration.
+   * Updates both the selected integration and the integrations list.
+   */
   const toggleIntegrationActive = async () => {
     if (!integration) return;
 
     try {
+      // Toggle status between active and inactive
       const updatedIntegration = await updateIntegration(integration.id, {
         status: integration.status === 'active' ? 'inactive' : 'active'
       });
       setIntegration(updatedIntegration);
+      // Update the integration in the list
       setIntegrations(prev => prev.map(int => 
         int.id === updatedIntegration.id ? updatedIntegration : int
       ));
@@ -165,6 +207,10 @@ export default function OrganizationIntegrations({
     }
   };
 
+  /**
+   * Synchronizes the current integration with its external service.
+   * Updates the integration data after successful sync and shows feedback to user.
+   */
   const handleSync = async () => {
     if (!integration) return;
 
@@ -177,6 +223,7 @@ export default function OrganizationIntegrations({
       
       if (result.success) {
         setSyncMessage('Sync completed successfully!');
+        // Refresh integration data after successful sync
         const updatedIntegration = await getIntegration(integration.id);
         if (updatedIntegration) {
           setIntegration(updatedIntegration);
@@ -189,10 +236,12 @@ export default function OrganizationIntegrations({
       setError('Failed to sync integration. Please try again.');
     } finally {
       setIsSyncing(false);
+      // Auto-clear success message after 5 seconds
       setTimeout(() => setSyncMessage(null), 5000);
     }
   };
 
+  // Show loading spinner while fetching data
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex justify-center items-center">
@@ -201,6 +250,7 @@ export default function OrganizationIntegrations({
     );
   }
 
+  // Show error state with navigation back to organizations
   if (error) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 max-w-2xl mx-auto">

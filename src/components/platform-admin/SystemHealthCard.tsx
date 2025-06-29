@@ -3,7 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { getSystemHealth, SystemHealthStatus } from '@/lib/services/platform/platformService';
 
+/**
+ * SystemHealthCard - Displays status of platform services
+ * Shows service health indicators with color-coded status badges
+ * Automatically fetches and displays last update timestamp
+ */
 const SystemHealthCard = () => {
+  // Initialize with default service statuses - serves as fallback data while loading
   const [systemStatuses, setSystemStatuses] = useState<SystemHealthStatus[]>([
     { name: 'Authentication Service', status: 'Operational', statusColor: 'green' },
     { name: 'Storage Service', status: 'Operational', statusColor: 'green' },
@@ -15,6 +21,7 @@ const SystemHealthCard = () => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  // Fetch system health data on component mount
   useEffect(() => {
     const fetchSystemHealth = async () => {
       try {
@@ -23,6 +30,7 @@ const SystemHealthCard = () => {
         setSystemStatuses(healthData);
         setLastUpdated(new Date());
       } catch (error) {
+        // Log error but maintain fallback state - component remains functional
         console.error('Error fetching system health:', error);
       } finally {
         setIsLoading(false);
@@ -49,10 +57,12 @@ const SystemHealthCard = () => {
           </div>
         ))}
       </div>
+      {/* Footer section with last update timestamp */}
       <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
         <div className="flex justify-between text-xs">
           <span className="text-gray-500 dark:text-gray-400">Last updated:</span>
           <span className="font-medium text-gray-700 dark:text-gray-300">
+            {/* Calculate and display time elapsed since last update in minutes */}
             {isLoading ? 'Loading...' : `${Math.floor((new Date().getTime() - lastUpdated.getTime()) / 60000)} minutes ago`}
           </span>
         </div>

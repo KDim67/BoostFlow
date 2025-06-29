@@ -7,7 +7,13 @@ import { useAuth } from '@/lib/firebase/useAuth';
 import { useOrganization } from '@/lib/firebase/OrganizationProvider';
 import { OrganizationWithDetails } from '@/lib/types/organization';
 
+/**
+ * OrganizationSelector - A dropdown component for switching between organizations
+ * Displays the current organization and allows users to select a different one
+ * Shows different UI states based on loading, empty organizations, or organization management page
+ */
 export default function OrganizationSelector() {
+  // Controls the dropdown open/closed state
   const [isOpen, setIsOpen] = useState(false);
   const { user } = useAuth();
   const router = useRouter();
@@ -19,14 +25,20 @@ export default function OrganizationSelector() {
     setActiveOrganization 
   } = useOrganization();
 
+  // Check if user is currently on the organizations management page
   const isOnOrganizationsPage = pathname === '/organizations';
 
+  /**
+   * Handles organization selection from dropdown
+   * Updates the active organization and navigates to its page
+   */
   const handleOrganizationSelect = (org: OrganizationWithDetails) => {
     setActiveOrganization(org);
-    setIsOpen(false);
+    setIsOpen(false); // Close dropdown after selection
     router.push(`/organizations/${org.id}`);
   };
 
+  // Show loading state while data is being fetched or user is not authenticated
   if (isLoading || !user) {
     return (
       <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
@@ -35,6 +47,7 @@ export default function OrganizationSelector() {
     );
   }
 
+  // Show create organization link when user has no organizations
   if (organizations.length === 0) {
     return (
       <Link 
@@ -48,10 +61,12 @@ className="block px-4 py-2 text-sm text-blue-600 hover:text-blue-800 dark:text-b
 
   return (
     <div className="relative">
+      {/* Main dropdown trigger button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
       >
+        {/* Show organization logo/avatar only when not on organizations page */}
         {!isOnOrganizationsPage && (
           activeOrganization?.logoUrl ? (
             <img 
@@ -60,6 +75,7 @@ className="block px-4 py-2 text-sm text-blue-600 hover:text-blue-800 dark:text-b
               className="w-6 h-6 rounded-full" 
             />
           ) : (
+            // Fallback avatar with organization initials
             <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
               <span className="text-blue-600 font-semibold text-xs">
                 {activeOrganization?.name.substring(0, 2).toUpperCase() || 'OR'}
@@ -67,6 +83,7 @@ className="block px-4 py-2 text-sm text-blue-600 hover:text-blue-800 dark:text-b
             </div>
           )
         )}
+        {/* Dynamic button text based on current page and organization state */}
         <span>{isOnOrganizationsPage ? 'Manage Organizations' : (activeOrganization?.name || 'Select Organization')}</span>
         <svg 
           className={`w-4 h-4 transition-transform ${isOpen ? 'transform rotate-180' : ''}`} 
@@ -79,9 +96,11 @@ className="block px-4 py-2 text-sm text-blue-600 hover:text-blue-800 dark:text-b
         </svg>
       </button>
 
+      {/* Dropdown menu */}
       {isOpen && (
         <div className="absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
           <div className="py-1" role="menu" aria-orientation="vertical">
+            {/* List of available organizations */}
             {organizations.map((org) => (
               <button
                 key={org.id}
@@ -89,6 +108,7 @@ className="block px-4 py-2 text-sm text-blue-600 hover:text-blue-800 dark:text-b
                 className={`flex items-center w-full text-left px-4 py-2 text-sm ${activeOrganization?.id === org.id ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                 role="menuitem"
               >
+                {/* Organization logo or fallback avatar */}
                 {org.logoUrl ? (
                   <img src={org.logoUrl} alt={org.name} className="w-5 h-5 rounded-full mr-3" />
                 ) : (

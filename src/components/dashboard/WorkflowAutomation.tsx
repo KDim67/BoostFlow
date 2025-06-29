@@ -18,13 +18,21 @@ import {
 import { queryDocuments } from '@/lib/firebase/firestoreService';
 import { where } from 'firebase/firestore';
 
+/**
+ * Props interface for the WorkflowAutomation component
+ * Supports both creating new workflows and editing existing ones
+ */
+
 interface WorkflowAutomationProps {
-  workflowId?: string;
-  projectId?: string;
-  currentUser: string;
-  organizationId?: string;
+  workflowId?: string; // Optional - if provided, loads existing workflow for editing
+  projectId?: string; // Required for creating new workflows
+  currentUser: string; // Current user identifier for workflow ownership
+  organizationId?: string; // Organization context for team/task queries
 }
 
+/**
+ * Interface representing a team member for workflow assignments
+ */
 interface TeamMember {
   id: string;
   name: string;
@@ -32,6 +40,17 @@ interface TeamMember {
   role: string;
 }
 
+/**
+ * WorkflowAutomation Component
+ * 
+ * A workflow builder and editor that allows users to:
+ * - Create workflows from templates or from scratch
+ * - Add and configure workflow steps (triggers, conditions, actions)
+ * - Connect steps to create workflow logic
+ * - Save and execute workflows
+ * 
+ * The component handles both creation and editing modes based on the presence of workflowId
+ */
 export default function WorkflowAutomation({
   workflowId,
   projectId,
@@ -55,21 +74,33 @@ export default function WorkflowAutomation({
   const [availableTemplates, setAvailableTemplates] = useState<WorkflowTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<WorkflowTemplate | null>(null);
   
+  /**
+   * Initialize component based on props
+   * - If workflowId exists: load existing workflow for editing
+   * - If no workflowId: show template selection for new workflow creation
+   * - Fetch supporting data (team members, tasks) when project context is available
+   */
   useEffect(() => {
     if (workflowId) {
       loadWorkflow(workflowId);
     } else {
+      // New workflow - show template selection
       const templates = getWorkflowTemplates();
       setAvailableTemplates(templates);
       setShowTemplateSelection(true);
     }
     
+    // Fetch contextual data for workflow configuration
     if (projectId && organizationId) {
       fetchTeamMembers();
       fetchAvailableTasks();
     }
   }, [workflowId, projectId, organizationId]);
   
+  /**
+   * Fetches team members for the current project and organization
+   * Used to populate assignee dropdowns in workflow actions
+   */
   const fetchTeamMembers = async () => {
     try {
       const membersData = await queryDocuments('team', [
@@ -82,12 +113,17 @@ export default function WorkflowAutomation({
     }
   };
 
+  /**
+   * Fetches available tasks for the current project
+   * Used in workflow conditions and actions that reference specific tasks
+   */
   const fetchAvailableTasks = async () => {
     try {
       const tasksData = await queryDocuments('tasks', [
         where('organizationId', '==', organizationId),
         where('projectId', '==', projectId)
       ]);
+      // Extract only id and title for dropdown options
       setAvailableTasks(tasksData.map((task: any) => ({
         id: task.id,
         title: task.title
@@ -97,16 +133,22 @@ export default function WorkflowAutomation({
     }
   };
   
+  /**
+   * Loads an existing workflow by ID and populates the component state
+   * Used when editing an existing workflow
+   */
   const loadWorkflow = async (id: string) => {
     try {
       const loadedWorkflow = await getWorkflow(id);
       if (loadedWorkflow) {
+        // Populate all workflow data into component state
         setWorkflow(loadedWorkflow);
         setWorkflowName(loadedWorkflow.name);
         setWorkflowDescription(loadedWorkflow.description);
         setSteps(loadedWorkflow.steps);
         setIsActive(loadedWorkflow.isActive);
         
+        // Find and set the trigger step reference
         const trigger = loadedWorkflow.steps.find(step => step.id === loadedWorkflow.triggerStep);
         setTriggerStep(trigger || null);
       } else {
@@ -118,11 +160,17 @@ export default function WorkflowAutomation({
     }
   };
   
+  /**
+   * Saves the current workflow state to the database
+   * Handles both creating new workflows and updating existing ones
+   * Validates workflow structure before saving
+   */
   const handleSave = async () => {
     try {
       setIsSaving(true);
       setError(null);
       
+      // Validate workflow has required trigger step
       if (!steps.some(step => step.type === 'trigger')) {
         setError('Workflow must have at least one trigger step');
         return;
@@ -131,6 +179,7 @@ export default function WorkflowAutomation({
       const triggerStep = steps.find(step => step.type === 'trigger');
       
       if (!workflow) {
+        // Creating new workflow
         if (!projectId) {
           setError('Project ID is required to create a workflow');
           return;
@@ -149,6 +198,7 @@ export default function WorkflowAutomation({
         
         setWorkflow(newWorkflow);
       } else {
+        // Updating existing workflow
         const updatedWorkflow = await updateWorkflow(workflow.id, {
           name: workflowName,
           description: workflowDescription,
@@ -169,6 +219,10 @@ export default function WorkflowAutomation({
     }
   };
   
+  /**
+   * Executes the current workflow with the provided context
+   * Only available for saved workflows that are marked as active
+   */
   const handleExecute = async () => {
     if (!workflow) return;
     
@@ -176,6 +230,7 @@ export default function WorkflowAutomation({
       setIsExecuting(true);
       setError(null);
       
+      // Execute workflow with current context
       const executionContext = await executeWorkflow(workflow.id, {
         projectId: projectId || workflow.projectId,
         currentUser,
@@ -183,6 +238,7 @@ export default function WorkflowAutomation({
       });
       console.log('Workflow execution started:', executionContext);
       
+      // Simulate execution time for UI feedback
       setTimeout(() => {
         setIsExecuting(false);
       }, 2000);
@@ -194,27 +250,40 @@ export default function WorkflowAutomation({
     }
   };
   
+  /**
+   * Adds a new step to the workflow
+   * Creates a step with default configuration and automatically selects it for editing
+   */
   const addStep = (type: WorkflowStep['type']) => {
     const newStep: WorkflowStep = {
-      id: `step-${Date.now()}`,
+      id: `step-${Date.now()}`, // Generate unique ID using timestamp
       type,
       name: `New ${type.charAt(0).toUpperCase() + type.slice(1)} Step`,
       description: `This is a new ${type} step`,
-      config: {},
-      nextSteps: []
+      config: {}, // Empty config to be filled by user
+      nextSteps: [] // No connections initially
     };
     
     setSteps([...steps, newStep]);
-    setActiveStepIndex(steps.length);
+    setActiveStepIndex(steps.length); // Select the new step for immediate editing
   };
   
+  /**
+   * Updates a specific step with new properties
+   * Uses partial updates to modify only the specified fields
+   */
   const updateStep = (index: number, updates: Partial<WorkflowStep>) => {
     const updatedSteps = [...steps];
     updatedSteps[index] = { ...updatedSteps[index], ...updates };
     setSteps(updatedSteps);
   };
   
+  /**
+   * Removes a step from the workflow
+   * Prevents removal of the only trigger step and cleans up step connections
+   */
   const removeStep = (index: number) => {
+    // Prevent removal of the only trigger step (workflows must have a trigger)
     if (steps.length === 1 && steps[0].type === 'trigger') {
       setError('Cannot remove the only trigger step');
       return;
@@ -222,6 +291,7 @@ export default function WorkflowAutomation({
     
     const updatedSteps = steps.filter((_, i) => i !== index);
     
+    // Clean up any connections to the removed step
     const removedStepId = steps[index].id;
     const stepsWithUpdatedRefs = updatedSteps.map(step => ({
       ...step,
@@ -229,22 +299,29 @@ export default function WorkflowAutomation({
     }));
     
     setSteps(stepsWithUpdatedRefs);
-    setActiveStepIndex(null);
+    setActiveStepIndex(null); // Clear selection
   };
   
+  /**
+   * Creates a connection between two workflow steps
+   * Validates connection rules (e.g., cannot connect to trigger steps)
+   */
   const connectSteps = (fromIndex: number, toIndex: number) => {
     const fromStep = steps[fromIndex];
     const toStep = steps[toIndex];
     
+    // Prevent connections to trigger steps (they must be entry points)
     if (toStep.type === 'trigger') {
       setError('Cannot connect to a trigger step');
       return;
     }
     
+    // Prevent duplicate connections
     if (fromStep.nextSteps.includes(toStep.id)) {
       return;
     }
     
+    // Add the connection
     const updatedSteps = [...steps];
     updatedSteps[fromIndex] = {
       ...fromStep,
@@ -254,6 +331,9 @@ export default function WorkflowAutomation({
     setSteps(updatedSteps);
   };
   
+  /**
+   * Removes a connection between two workflow steps
+   */
   const disconnectSteps = (fromIndex: number, toIndex: number) => {
     const fromStep = steps[fromIndex];
     const toStep = steps[toIndex];
@@ -267,41 +347,57 @@ export default function WorkflowAutomation({
     setSteps(updatedSteps);
   };
   
+  /**
+   * Handles selection of a workflow template
+   * Populates the workflow with template data and switches to editor mode
+   */
   const handleTemplateSelect = (template: WorkflowTemplate) => {
     setSelectedTemplate(template);
     setWorkflowName(template.name);
     setWorkflowDescription(template.description);
     
+    // Create workflow steps from template
     const { steps: templateSteps, triggerStep: templateTriggerStep } = createWorkflowFromTemplate(template);
     setSteps(templateSteps);
     setTriggerStep(templateTriggerStep);
-    setShowTemplateSelection(false);
+    setShowTemplateSelection(false); // Switch to editor mode
   };
   
+  /**
+   * Creates a new workflow from scratch with just a manual trigger
+   * Used when user chooses not to use a template
+   */
   const handleStartFromScratch = () => {
+    // Create a basic manual trigger step
     const manualTriggerStep: WorkflowStep = {
       id: `step-${Date.now()}`,
       type: 'trigger',
       name: 'Manual Start',
       description: 'This workflow must be started manually by a user',
-      config: { triggerType: 'manual' },
+      config: { triggerType: 'manual' }, // All workflows use manual triggers
       nextSteps: []
     };
     
+    // Initialize workflow with minimal setup
     setSteps([manualTriggerStep]);
     setTriggerStep(manualTriggerStep);
     setWorkflowName('New Workflow');
     setWorkflowDescription('');
-    setShowTemplateSelection(false);
+    setShowTemplateSelection(false); // Switch to editor mode
   };
   
+  /**
+   * Returns to template selection mode and clears current workflow data
+   * Used when user wants to choose a different template
+   */
   const handleBackToTemplates = () => {
     setShowTemplateSelection(true);
-    setSteps([]);
+    setSteps([]); // Clear current workflow
     setTriggerStep(null);
     setSelectedTemplate(null);
   };
   
+  // Render template selection screen when creating a new workflow
   if (showTemplateSelection) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">

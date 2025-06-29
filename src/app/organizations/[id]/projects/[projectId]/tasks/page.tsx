@@ -11,53 +11,83 @@ import { Organization } from '@/lib/types/organization';
 
 import Badge from '@/components/Badge';
 
+/**
+ * Task interface defining the structure of a project task
+ * Contains all necessary fields for task management including status tracking,
+ * assignment, priority levels, and time tracking capabilities
+ */
 interface Task {
   id: string;
   title: string;
   description: string;
-  status: 'pending' | 'in-progress' | 'completed';
-  priority: 'low' | 'medium' | 'high';
+  status: 'pending' | 'in-progress' | 'completed'; // Task workflow states
+  priority: 'low' | 'medium' | 'high'; // Priority levels for task organization
   dueDate: string;
-  projectId?: string;
-  assignedTo?: string;
-  assignee?: string;
-  hoursTracked?: number;
-  timeSpent?: number;
-  organizationId: string;
-  createdBy: string;
-  createdAt: any;
-  completedAt?: any;
+  projectId?: string; // Optional project association
+  assignedTo?: string; // User ID of assignee
+  assignee?: string; // Display name of assignee
+  hoursTracked?: number; // Time tracking functionality
+  timeSpent?: number; // Actual time spent on task
+  organizationId: string; // Required organization context
+  createdBy: string; // User ID of task creator
+  createdAt: any; // Firestore timestamp
+  completedAt?: any; // Completion timestamp for analytics
 }
 
+/**
+ * Team member interface for task assignment dropdown
+ * Represents users who can be assigned to tasks within the project
+ */
 interface TeamMember {
   id: string;
   name: string;
   email: string;
-  role: string;
+  role: string; // Team role for permission context
 }
 
+/**
+ * Main component for managing tasks within an organization's project
+ * Handles task CRUD operations, permission checking, and UI state management
+ * Uses dynamic routing parameters for organization and project context
+ */
 export default function OrganizationProjectsTasks() {
+  // Extract route parameters (can be arrays in Next.js dynamic routes)
   const { id, projectId } = useParams();
+  
+  // Core data state
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  
+  // UI state management
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null); // Controls which task dropdown is open
+  
+  // Authentication context
   const { user } = useAuth();
+  
+  // Normalize route parameters
   const organizationId = Array.isArray(id) ? id[0] : id;
   const projectIdString = Array.isArray(projectId) ? projectId[0] : projectId;
 
+  // Effect hook to fetch all necessary data when component mounts or dependencies change
   useEffect(() => {
+    /**
+     * Fetches tasks, organization data, and team members with permission validation
+     * Implements proper error handling and loading states
+     */
     const fetchTasksData = async () => {
+      // Early return if required data is missing
       if (!user || !organizationId || !projectIdString) return;
       
       try {
         setIsLoading(true);
         setError(null);
         
+        // Check user permissions before fetching sensitive data
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'viewer');
         
         if (!permission) {
@@ -66,15 +96,18 @@ export default function OrganizationProjectsTasks() {
           return;
         }
         
+        // Fetch organization details for context
         const orgData = await getOrganization(organizationId);
         setOrganization(orgData);
         
+        // Fetch tasks filtered by organization and project
         const tasksData = await queryDocuments('tasks', [
           where('organizationId', '==', organizationId),
           where('projectId', '==', projectIdString)
         ]);
         setTasks(tasksData as Task[]);
         
+        // Fetch team members for task assignment dropdown
         const teamMembersData = await queryDocuments('projectMembers', [
           where('projectId', '==', projectIdString)
         ]);
@@ -88,8 +121,9 @@ export default function OrganizationProjectsTasks() {
     };
 
     fetchTasksData();
-  }, [user, organizationId, projectIdString]);
+  }, [user, organizationId, projectIdString]); // Re-run when user or route params change
 
+  // Loading state with spinner
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex justify-center items-center">
@@ -98,6 +132,7 @@ export default function OrganizationProjectsTasks() {
     );
   }
 
+  // Error state or missing organization data
   if (error || !organization) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 max-w-2xl mx-auto">
@@ -176,22 +211,28 @@ export default function OrganizationProjectsTasks() {
               <li key={task.id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-900/20 transition-colors">
                 <div className="flex items-start">
                   <div className="flex-shrink-0 pt-1">
+                    {/* Task completion checkbox with updates */}
                     <input 
                       type="checkbox" 
                       checked={task.status === 'completed'}
                       onChange={async () => {
                         try {
+                          // Toggle between completed and pending states
                           const newStatus = task.status === 'completed' ? 'pending' : 'completed';
                           const updateData: any = { status: newStatus };
                           
+                          // Set completion timestamp when marking as completed
                           if (newStatus === 'completed') {
                             updateData.completedAt = serverTimestamp();
                           } else {
+                            // Clear completion timestamp when unmarking
                             updateData.completedAt = null;
                           }
                           
+                          // Update in Firestore
                           await updateDocument('tasks', task.id, updateData);
                           
+                          // Update local state for immediate UI feedback
                           setTasks(tasks.map(t => 
                             t.id === task.id ? { 
                               ...t, 
@@ -213,6 +254,7 @@ export default function OrganizationProjectsTasks() {
                       </div>
                       <div className="flex items-center space-x-2">
                         <Badge type="priority" value={task.priority} variant="with-icon" size="md" />
+                        {/* Task actions dropdown menu */}
                         <div className="relative">
                           <button
                             onClick={() => setOpenDropdownId(openDropdownId === task.id ? null : task.id)}
@@ -222,13 +264,15 @@ export default function OrganizationProjectsTasks() {
                               <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                             </svg>
                           </button>
+                          {/* Dropdown menu */}
                           {openDropdownId === task.id && (
                             <div className="absolute right-0 mt-1 w-32 bg-white dark:bg-gray-700 rounded-md shadow-lg z-10 border border-gray-200 dark:border-gray-600">
+                              {/* Edit task option */}
                               <button
                                 onClick={() => {
                                   setEditingTask(task);
                                   setIsModalOpen(true);
-                                  setOpenDropdownId(null);
+                                  setOpenDropdownId(null); // Close dropdown
                                 }}
                                 className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center"
                               >
@@ -237,12 +281,15 @@ export default function OrganizationProjectsTasks() {
                                 </svg>
                                 Edit
                               </button>
+                              {/* Delete task option */}
                               <button
                                 onClick={async () => {
                                   try {
+                                    // Delete from Firestore
                                     await deleteDocument('tasks', task.id);
+                                    // Remove from local state for immediate UI update
                                     setTasks(tasks.filter(t => t.id !== task.id));
-                                    setOpenDropdownId(null);
+                                    setOpenDropdownId(null); // Close dropdown
                                   } catch (error) {
                                     console.error('Error deleting task:', error);
                                   }
@@ -289,6 +336,7 @@ export default function OrganizationProjectsTasks() {
         <TaskModal 
           isOpen={isModalOpen} 
           onClose={() => {
+            // Close modal and reset editing state
             setIsModalOpen(false);
             setEditingTask(null);
           }} 
@@ -296,9 +344,11 @@ export default function OrganizationProjectsTasks() {
           organizationId={organizationId}
           projectId={projectIdString}
           onTaskCreated={(newTask) => {
+            // Add new task to local state for immediate UI update
             setTasks([...tasks, newTask]);
           }}
           onTaskUpdated={(updatedTask) => {
+            // Update existing task in local state
             setTasks(tasks.map(t => t.id === updatedTask.id ? updatedTask : t));
           }} 
         />
@@ -307,9 +357,18 @@ export default function OrganizationProjectsTasks() {
   );
 }
 
+/**
+ * TaskModal - Modal component for creating and editing tasks
+ * Handles form state, validation, and submission for task operations
+ */
 function TaskModal({ isOpen, onClose, editingTask, organizationId, projectId, onTaskCreated, onTaskUpdated }: TaskModalProps) {
+  // Early return if required props are missing
   if (!organizationId || !projectId) return null;
+  
+  // Determine if we're editing an existing task or creating a new one
   const isEditing = !!editingTask;
+  
+  // Form state - initialized with editing task data or defaults
   const [title, setTitle] = useState(editingTask?.title || '');
   const [description, setDescription] = useState(editingTask?.description || '');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>(editingTask?.priority || 'medium');
@@ -320,6 +379,7 @@ function TaskModal({ isOpen, onClose, editingTask, organizationId, projectId, on
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const { user } = useAuth();
   
+  // Reset form fields when modal opens or editing task changes
   useEffect(() => {
     if (isOpen) {
       setTitle(editingTask?.title || '');
@@ -331,6 +391,7 @@ function TaskModal({ isOpen, onClose, editingTask, organizationId, projectId, on
     }
   }, [isOpen, editingTask]);
   
+  // Fetch team members for assignee dropdown when modal opens
   useEffect(() => {
     const fetchTeamMembers = async () => {
       if (!isOpen || !projectId || !organizationId) return;
@@ -347,15 +408,21 @@ function TaskModal({ isOpen, onClose, editingTask, organizationId, projectId, on
     fetchTeamMembers();
   }, [isOpen, projectId, organizationId]);
 
+  /**
+   * Handle form submission for creating or updating tasks
+   * Manages completion timestamps and optimistic UI updates
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Ensure user is authenticated before proceeding
     if (!user) return;
     
     try {
       setIsSubmitting(true);
       
       if (isEditing && editingTask) {
+        // Update existing task
         const updateData: any = {
           title,
           description,
@@ -366,20 +433,26 @@ function TaskModal({ isOpen, onClose, editingTask, organizationId, projectId, on
           status,
         };
         
+        // Handle completion timestamp logic
         if (status === 'completed' && editingTask.status !== 'completed') {
+          // Task is being marked as completed
           updateData.completedAt = serverTimestamp();
         } else if (status !== 'completed') {
+          // Task is being unmarked as completed
           updateData.completedAt = null;
         }
         
+        // Update task in Firestore
         await updateDocument('tasks', editingTask.id, updateData);
         
+        // Update local state with UI update
         onTaskUpdated({
           ...editingTask,
           ...updateData,
           completedAt: status === 'completed' && editingTask.status !== 'completed' ? new Date() : editingTask.completedAt,
         });
       } else {
+        // Create new task
         const taskData = {
           title,
           description,
@@ -387,23 +460,26 @@ function TaskModal({ isOpen, onClose, editingTask, organizationId, projectId, on
           dueDate,
           assignee: assignee || 'Unassigned',
           assignedTo: assignee || undefined,
-          status: 'pending' as const,
+          status: 'pending' as const, // New tasks always start as pending
           organizationId,
           projectId,
           createdBy: user.uid,
           createdAt: serverTimestamp(),
-          timeSpent: 0,
+          timeSpent: 0, // Initialize time tracking
         };
         
+        // Create task in Firestore and get the new ID
         const newTaskId = await createDocument('tasks', taskData);
         
+        // Add to local state with UI update
         onTaskCreated({
           id: newTaskId,
           ...taskData,
-          createdAt: new Date(),
+          createdAt: new Date(), // Use local timestamp for immediate UI update
         });
       }
       
+      // Close modal on successful submission
       onClose();
     } catch (error) {
       console.error(`Error ${isEditing ? 'updating' : 'creating'} task:`, error);
@@ -412,6 +488,7 @@ function TaskModal({ isOpen, onClose, editingTask, organizationId, projectId, on
     }
   };
 
+  // Don't render modal if not open
   if (!isOpen) return null;
 
   return (
@@ -526,6 +603,10 @@ function TaskModal({ isOpen, onClose, editingTask, organizationId, projectId, on
   );
 }
 
+/**
+ * Props interface for the TaskModal component
+ * Defines the contract for modal behavior and task operations
+ */
 interface TaskModalProps {
   isOpen: boolean;
   onClose: () => void;

@@ -1,24 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Request payload structure for project generation API
 interface ProjectGenerationRequest {
-  prompt: string;
-  organizationName?: string;
-  industry?: string;
+  prompt: string; // User's project description or requirements
+  organizationName?: string; // Optional organization context
+  industry?: string; // Optional industry context for better suggestions
 }
 
+// Response structure for AI-generated project suggestions
 interface ProjectSuggestion {
-  name: string;
-  description: string;
-  suggestedStatus: string;
-  estimatedDuration: string;
-  keyFeatures: string[];
+  name: string; // Project title (max 60 characters)
+  description: string; // Detailed project overview (200-400 words)
+  suggestedStatus: string; // Project phase: planning|active|on-hold
+  estimatedDuration: string; // Realistic timeline estimate
+  keyFeatures: string[]; // Array of 3-5 key deliverables or features
 }
 
+// API route handler for generating AI-powered project suggestions
 export async function POST(request: NextRequest) {
   try {
+    // Extract and validate request payload
     const { prompt, organizationName, industry } = await request.json() as ProjectGenerationRequest;
 
+    // Validate Gemini API key configuration
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
@@ -27,9 +32,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Initialize Gemini AI client with flash model for fast responses
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
+    // Build contextual information for more targeted project suggestions
     const contextInfo = organizationName ? `Organization: ${organizationName}` : '';
     const industryInfo = industry ? `Industry: ${industry}` : '';
 
@@ -60,12 +67,14 @@ Guidelines:
 
 Provide only the JSON object, no additional text.`;
 
+    // Generate AI response and extract text content
     const result = await model.generateContent(generationPrompt);
     const response = await result.response;
     const text = response.text();
 
     let projectSuggestion: ProjectSuggestion;
     try {
+      // Extract JSON from AI response using regex (AI may include extra text)
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error('No JSON object found in response');
@@ -73,6 +82,7 @@ Provide only the JSON object, no additional text.`;
       
       projectSuggestion = JSON.parse(jsonMatch[0]);
       
+      // Ensure all required fields have fallback values for data integrity
       projectSuggestion = {
         name: projectSuggestion.name || 'AI Generated Project',
         description: projectSuggestion.description || 'AI generated project description',
@@ -82,9 +92,11 @@ Provide only the JSON object, no additional text.`;
       };
 
     } catch (parseError) {
+      // Log parsing errors for debugging while providing fallback response
       console.error('Error parsing AI response:', parseError);
       console.error('Raw AI response:', text);
       
+      // Fallback project suggestion when AI response parsing fails
       projectSuggestion = {
         name: 'AI Generated Project',
         description: 'This is an AI-generated project based on your input. Please customize the details according to your specific requirements and organizational needs.',
@@ -97,8 +109,10 @@ Provide only the JSON object, no additional text.`;
     return NextResponse.json(projectSuggestion);
 
   } catch (error) {
+    // Handle any unexpected errors during the generation process
     console.error('Error generating project suggestion:', error);
     
+    // Return minimal fallback when entire process fails
     const fallbackSuggestion: ProjectSuggestion = {
       name: 'New Project',
       description: 'AI project generation is currently unavailable. Please manually enter your project details.',

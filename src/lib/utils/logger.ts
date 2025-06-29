@@ -1,3 +1,4 @@
+// Defines the severity levels for logging messages
 export enum LogLevel {
   DEBUG = 'debug',
   INFO = 'info',
@@ -5,14 +6,19 @@ export enum LogLevel {
   ERROR = 'error'
 }
 
+// Represents a structured log entry with metadata
 export interface LogEntry {
   level: LogLevel;
   message: string;
-  context?: Record<string, any>;
+  context?: Record<string, any>; // Additional data for debugging
   timestamp: Date;
-  service?: string;
+  service?: string; // Service name for log identification
 }
 
+/**
+ * Logger class for structured logging with service identification
+ * Provides methods for different log levels and automatic timestamping
+ */
 export class Logger {
   private serviceName: string;
   
@@ -33,6 +39,7 @@ export class Logger {
   }
 
   error(message: string, error?: Error, context?: Record<string, any>): void {
+    // Enhance context with error details if Error object is provided
     const errorContext = error ? {
       ...context,
       error: {
@@ -45,6 +52,7 @@ export class Logger {
     this.log(LogLevel.ERROR, message, errorContext);
   }
   
+  // Core logging method that formats and outputs log entries
   private log(level: LogLevel, message: string, context?: Record<string, any>): void {
     const entry: LogEntry = {
       level,
@@ -54,6 +62,7 @@ export class Logger {
       service: this.serviceName
     };
     
+    // Route to appropriate console method based on log level
     switch (level) {
       case LogLevel.DEBUG:
         console.debug(`[${entry.service}] ${message}`, context || '');
@@ -71,6 +80,7 @@ export class Logger {
   }
 }
 
+// Factory function for creating logger instances with service identification
 export function createLogger(serviceName: string): Logger {
   return new Logger(serviceName);
 }

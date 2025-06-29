@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/firebase/useAuth';
 
+// Interface defining the structure of invitation data received from the API
 interface InvitationData {
   organizationName?: string;
   organizationId?: string;
@@ -12,18 +13,24 @@ interface InvitationData {
   inviterName?: string;
 }
 
+/**
+ * Page component for handling organization invitations via token-based URLs
+ * Validates invitation tokens, displays invitation details, and processes accept/decline actions
+ */
 export default function InvitationPage() {
   const { token } = useParams();
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Loading state for invitation validation
+  const [isProcessing, setIsProcessing] = useState(false); // Processing state for accept/decline actions
   const [error, setError] = useState<string | null>(null);
   const [invitationData, setInvitationData] = useState<InvitationData | null>(null);
   const [validInvitation, setValidInvitation] = useState(false);
   
+  // Handle case where token might be an array from dynamic routing
   const invitationToken = Array.isArray(token) ? token[0] : token;
 
+  // Validate invitation token on component mount and when token changes
   useEffect(() => {
     const validateInvitation = async () => {
       if (!invitationToken) {
@@ -33,6 +40,7 @@ export default function InvitationPage() {
       }
 
       try {
+        // Fetch invitation details from API to validate token and get organization info
         const response = await fetch(`/api/invitations/${invitationToken}`);
         const result = await response.json();
         
@@ -58,6 +66,10 @@ export default function InvitationPage() {
     validateInvitation();
   }, [invitationToken]);
 
+  /**
+   * Handles user's decision to accept or decline the invitation
+   * @param action - Either 'accept' or 'decline'
+   */
   const handleInvitationAction = async (action: 'accept' | 'decline') => {
     if (!user || !invitationToken) return;
     
@@ -65,6 +77,7 @@ export default function InvitationPage() {
       setIsProcessing(true);
       setError(null);
       
+      // Send POST request to process the invitation with user's decision
       const response = await fetch(`/api/invitations/${invitationToken}`, {
         method: 'POST',
         headers: {
@@ -83,6 +96,7 @@ export default function InvitationPage() {
       }
       
       if (result.success) {
+        // Delay redirect to allow user to see success state
         setTimeout(() => {
           if (result.redirectUrl) {
             router.push(result.redirectUrl);
@@ -91,6 +105,7 @@ export default function InvitationPage() {
           }
         }, 1500);
         
+        // Update invitation data with any new information from the response
         setInvitationData(prev => ({
           ...prev,
           organizationName: result.organizationName || prev?.organizationName
@@ -104,6 +119,7 @@ export default function InvitationPage() {
     }
   };
 
+  // Show loading spinner while authentication or invitation validation is in progress
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex justify-center items-center">
@@ -112,6 +128,7 @@ export default function InvitationPage() {
     );
   }
 
+  // Redirect unauthenticated users to login with return URL to this invitation page
   if (!user) {
     router.push(`/login?redirect=${encodeURIComponent(`/invitation/${invitationToken}`)}`);
     return null;

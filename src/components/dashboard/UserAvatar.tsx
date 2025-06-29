@@ -1,5 +1,12 @@
 import { useMemo } from 'react';
 
+/**
+ * Props interface for the UserAvatar component
+ * @param username - The user's display name, used for generating initials and color
+ * @param size - Avatar size variant (sm: 32px, md: 40px, lg: 48px)
+ * @param imageUrl - Optional profile image URL; if not provided, shows initials
+ * @param status - Optional status indicator for user presence
+ */
 interface UserAvatarProps {
   username: string;
   size?: 'sm' | 'md' | 'lg';
@@ -7,18 +14,28 @@ interface UserAvatarProps {
   status?: 'online' | 'offline' | 'away' | 'busy';
 }
 
+/**
+ * UserAvatar component displays a user's profile picture or initials with optional status indicator
+ * Features:
+ * - Fallback to initials when no image is provided
+ * - Consistent color generation based on username
+ * - Multiple size variants
+ * - Status indicator overlay
+ */
 export default function UserAvatar({
   username,
   size = 'md',
   imageUrl,
   status
 }: UserAvatarProps) {
+  // Size mappings for avatar dimensions and text size
   const sizeClasses = {
     sm: 'h-8 w-8 text-xs',
     md: 'h-10 w-10 text-sm',
     lg: 'h-12 w-12 text-base'
   };
 
+  // Status indicator color mappings
   const statusClasses = {
     online: 'bg-green-500',
     offline: 'bg-gray-400',
@@ -26,19 +43,25 @@ export default function UserAvatar({
     busy: 'bg-red-500'
   };
 
+  // Generate user initials from username, memoized for performance
   const initials = useMemo(() => {
     if (!username) return '';
     
+    // Split by common separators (space, dash, underscore) and filter empty strings
     const parts = username.split(/[\s-_]+/).filter(Boolean);
     if (parts.length >= 2) {
+      // Use first letter of first two parts for multi-word names
       return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
     }
+    // For single words, use first two characters
     return username.substring(0, 2).toUpperCase();
   }, [username]);
 
+  // Generate consistent background color based on username hash
   const backgroundColor = useMemo(() => {
     if (!username) return 'bg-blue-500';
     
+    // Predefined color palette for avatar backgrounds
     const colors = [
       'bg-blue-500',
       'bg-purple-500',
@@ -50,6 +73,8 @@ export default function UserAvatar({
       'bg-teal-500'
     ];
     
+    // Create a simple hash from username characters
+    // This ensures the same username always gets the same color
     const hash = username.split('').reduce((acc, char) => {
       return acc + char.charCodeAt(0);
     }, 0);

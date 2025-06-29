@@ -10,24 +10,35 @@ import { ArrowLeft } from 'lucide-react';
 import { Organization, Project } from '@/lib/types/organization';
 
 export default function NewWorkflowPage() {
+  // Extract route parameters for organization and project IDs
   const { id, projectId } = useParams();
   const router = useRouter();
+  
+  // Component state management
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [project, setProject] = useState<Project | null>(null);
+  
+  // Get current authenticated user
   const { user } = useAuth();
+  
+  // Handle potential array values from Next.js dynamic routes
+  // useParams() can return string[] for catch-all routes, so we extract the first element
   const organizationId = Array.isArray(id) ? id[0] : id as string;
   const projectIdString = Array.isArray(projectId) ? projectId[0] : projectId as string;
 
+  // Load organization and project data with permission validation
   useEffect(() => {
     const loadData = async () => {
+      // Early return if required data is missing
       if (!user || !organizationId || !projectIdString) return;
       
       try {
         setIsLoading(true);
         setError(null);
         
+        // Check if user has at least 'member' permission for automation features
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'member');
         
         if (!permission) {
@@ -35,6 +46,7 @@ export default function NewWorkflowPage() {
           return;
         }
 
+        // Fetch organization and project data in parallel for better performance
         const [orgData, projectData] = await Promise.all([
           getOrganization(organizationId),
           getDocument('projects', projectIdString) as Promise<Project | null>
@@ -46,13 +58,15 @@ export default function NewWorkflowPage() {
         console.error('Error loading data:', error);
         setError('Failed to load organization or project data. Please try again.');
       } finally {
+        // Ensure loading state is cleared regardless of success/failure
         setIsLoading(false);
       }
     };
 
     loadData();
-  }, [user, organizationId, projectIdString]);
+  }, [user, organizationId, projectIdString]); // Re-run when user or route params change
 
+  // Navigate back to the project page
   const handleBack = () => {
     router.push(`/organizations/${organizationId}/projects/${projectIdString}`);
   };
@@ -65,6 +79,7 @@ export default function NewWorkflowPage() {
     );
   }
 
+  // Show error state with back navigation option
   if (error) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8">
@@ -85,6 +100,7 @@ export default function NewWorkflowPage() {
     );
   }
 
+  // Render the main workflow creation interface
   return (
     <div className="space-y-6">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md">
