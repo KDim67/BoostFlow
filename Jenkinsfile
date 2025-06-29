@@ -2,6 +2,13 @@ pipeline {
 
 agent any
 
+parameters {
+        booleanParam(name: 'run ansible pipeline', defaultValue: true, description: 'ansible build')
+        booleanParam(name: 'Docker build and push', defaultValue: true, description: 'Docker build and push')
+        booleanParam(name: 'deploy to kubernetes', defaultValue: true, description: 'deploy to kubernetes')
+
+    }
+
 environment {
         DOCKER_TOKEN=credentials('docker-push-secret')
         DOCKER_USER='nikosd767'
