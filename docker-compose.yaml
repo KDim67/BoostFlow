@@ -3,7 +3,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: production
     container_name: boostflow-app
     restart: always
     env_file:
