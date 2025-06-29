@@ -2,6 +2,12 @@ pipeline {
 
     agent any
 
+    parameters {
+        booleanParam(name: 'run ansible pipeline', defaultValue: true, description: 'run ansible pipeline')
+        booleanParam(name: 'test connection to deploy env', defaultValue: true, description: 'test connection to deploy env')
+        booleanParam(name: 'deploy all', defaultValue: true, description: 'deploy all')
+    }
+
     stages {
     
         stage('run ansible pipeline') {
@@ -18,7 +24,7 @@ pipeline {
             }
         }
         
-        stage('Install all') {
+        stage('deploy all') {
             steps {
                 sh '''
                     export ANSIBLE_CONFIG=~/workspace/ansible/ansible/ansible.cfg
