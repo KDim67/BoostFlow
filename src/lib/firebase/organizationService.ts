@@ -380,14 +380,77 @@ export const updateOrganizationMembership = async (
 /**
  * Removes a member from an organization by deleting their membership
  * Used for both removing active members and declining invitations
+ * Includes permission validation to ensure only authorized users can remove members
  * @param membershipId - ID of the membership to remove
+ * @param currentUserId - ID of the user performing the removal (for permission check)
  */
-export const removeOrganizationMember = async (membershipId: string): Promise<void> => {
+export const removeOrganizationMember = async (membershipId: string, currentUserId?: string): Promise<void> => {
   try {
+    // If currentUserId is provided, validate permissions
+    if (currentUserId) {
+      // Get the membership being removed to check target member's role and organization
+      const membershipToRemove = await getDocument(MEMBERSHIPS_COLLECTION, membershipId) as OrganizationMembership;
+      if (!membershipToRemove) {
+        throw new Error('Membership not found');
+      }
+
+      // Allow users to remove themselves only if they're not the owner (for leave organization functionality)
+      if (membershipToRemove.userId === currentUserId) {
+        if (membershipToRemove.role === 'owner') {
+          throw new Error('Owners cannot leave the organization. Transfer ownership first.');
+        }
+        // Allow self-removal for non-owners (leave organization)
+        await deleteDocument(MEMBERSHIPS_COLLECTION, membershipId);
+        logger.info(`User left organization: ${membershipId}`);
+        return;
+      }
+
+      // Prevent removal of organization owners
+      if (membershipToRemove.role === 'owner') {
+        throw new Error('Cannot remove organization owner.');
+      }
+
+      // Get current user's membership to check their role
+      const currentUserMemberships = await queryDocuments(MEMBERSHIPS_COLLECTION, [
+        where('userId', '==', currentUserId),
+        where('organizationId', '==', membershipToRemove.organizationId),
+        where('status', '==', 'active'),
+        limit(1)
+      ]) as OrganizationMembership[];
+
+      if (currentUserMemberships.length === 0) {
+        throw new Error('You are not a member of this organization.');
+      }
+
+      const currentUserRole = currentUserMemberships[0].role;
+      const targetMemberRole = membershipToRemove.role;
+
+      // Define role hierarchy for permission checking
+      const roleHierarchy: Record<OrganizationRole, number> = {
+        'owner': 4,
+        'admin': 3,
+        'member': 2,
+        'viewer': 1
+      };
+
+      // Owners can remove anyone except other owners (already checked above)
+      // Admins can remove members and viewers, but not other admins
+      // Members and viewers cannot remove anyone
+      if (currentUserRole === 'owner') {
+        // Owners can remove anyone except other owners (already validated)
+      } else if (currentUserRole === 'admin') {
+        if (targetMemberRole === 'admin') {
+          throw new Error('Admins cannot remove other admins.');
+        }
+      } else {
+        throw new Error('You do not have permission to remove members.');
+      }
+    }
+
     await deleteDocument(MEMBERSHIPS_COLLECTION, membershipId);
     logger.info(`Organization member removed: ${membershipId}`);
   } catch (error) {
-    logger.error('Error removing organization member', error as Error, { membershipId });
+    logger.error('Error removing organization member', error as Error, { membershipId, currentUserId });
     throw error;
   }
 };

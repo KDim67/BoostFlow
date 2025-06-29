@@ -90,6 +90,7 @@ export default function ProjectDetailPage() {
   const [activeTab, setActiveTab] = useState('overview'); // Controls which tab content is displayed
   const [isLoading, setIsLoading] = useState(true); // Loading state for initial data fetch
   const [error, setError] = useState<string | null>(null); // Error message display
+  const [canAccessAdvancedFeatures, setCanAccessAdvancedFeatures] = useState(false); // Permission for analytics and workflows
   
   // Milestone modal state
   const [showMilestoneModal, setShowMilestoneModal] = useState(false);
@@ -141,6 +142,15 @@ export default function ProjectDetailPage() {
           setError('You do not have permission to view this organization.');
           setIsLoading(false);
           return;
+        }
+        
+        // Check if user has permission to access advanced features (analytics and workflows)
+        const canAccessAdvanced = await hasOrganizationPermission(user.uid, organizationId, 'member');
+        setCanAccessAdvancedFeatures(canAccessAdvanced);
+        
+        // Reset active tab if user doesn't have permission for advanced features
+        if (!canAccessAdvanced && (activeTab === 'analytics' || activeTab === 'workflows')) {
+          setActiveTab('overview');
         }
         
         // Fetch organization data
@@ -482,18 +492,22 @@ export default function ProjectDetailPage() {
             >
               Team
             </button>
-            <button
-              onClick={() => setActiveTab('analytics')}
-              className={`py-4 px-1 ${activeTab === 'analytics' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'} font-medium`}
-            >
-              Analytics
-            </button>
-            <button
-              onClick={() => setActiveTab('workflows')}
-              className={`py-4 px-1 ${activeTab === 'workflows' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'} font-medium`}
-            >
-              Workflows
-            </button>
+            {canAccessAdvancedFeatures && (
+              <button
+                onClick={() => setActiveTab('analytics')}
+                className={`py-4 px-1 ${activeTab === 'analytics' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'} font-medium`}
+              >
+                Analytics
+              </button>
+            )}
+            {canAccessAdvancedFeatures && (
+              <button
+                onClick={() => setActiveTab('workflows')}
+                className={`py-4 px-1 ${activeTab === 'workflows' ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'} font-medium`}
+              >
+                Workflows
+              </button>
+            )}
           </nav>
         </div>
 
@@ -507,17 +521,19 @@ export default function ProjectDetailPage() {
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
                   <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                     <h3 className="text-lg font-medium text-gray-900 dark:text-white">Milestones</h3>
-                    <button 
-                      onClick={handleAddMilestone}
-                      className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all text-sm"
-                    >
-                      <span className="flex items-center">
-                        <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        Add Milestone
-                      </span>
-                    </button>
+                    {canAccessAdvancedFeatures && (
+                      <button 
+                        onClick={handleAddMilestone}
+                        className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all text-sm"
+                      >
+                        <span className="flex items-center">
+                          <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                          </svg>
+                          Add Milestone
+                        </span>
+                      </button>
+                    )}
                   </div>
                   <div className="px-6 py-5">
                     {milestones && milestones.length > 0 ? (
@@ -526,10 +542,12 @@ export default function ProjectDetailPage() {
                           <li key={milestone.id} className="py-4">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center flex-1">
-                                <div className={`h-8 w-8 rounded-full flex items-center justify-center mr-3 cursor-pointer ${milestone.status === 'Completed' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' : milestone.status === 'In Progress' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}
+                                <div className={`h-8 w-8 rounded-full flex items-center justify-center mr-3 ${canAccessAdvancedFeatures ? 'cursor-pointer' : 'cursor-default'} ${milestone.status === 'Completed' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' : milestone.status === 'In Progress' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}
                                      onClick={() => {
-                                       const nextStatus = milestone.status === 'Pending' ? 'In Progress' : milestone.status === 'In Progress' ? 'Completed' : 'Pending';
-                                       handleMilestoneStatusChange(milestone.id, nextStatus);
+                                       if (canAccessAdvancedFeatures) {
+                                         const nextStatus = milestone.status === 'Pending' ? 'In Progress' : milestone.status === 'In Progress' ? 'Completed' : 'Pending';
+                                         handleMilestoneStatusChange(milestone.id, nextStatus);
+                                       }
                                      }}>
                                   {milestone.status === 'Completed' ? (
                                     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -560,22 +578,26 @@ export default function ProjectDetailPage() {
                                   variant="with-icon" 
                                   size="sm" 
                                 />
-                                <button
-                                  onClick={() => handleEditMilestone(milestone)}
-                                  className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                                >
-                                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                  </svg>
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteMilestone(milestone.id)}
-                                  className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                                >
-                                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
+                                {canAccessAdvancedFeatures && (
+                                  <>
+                                    <button
+                                      onClick={() => handleEditMilestone(milestone)}
+                                      className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                    >
+                                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                      </svg>
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteMilestone(milestone.id)}
+                                      className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                                    >
+                                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </li>
@@ -610,10 +632,13 @@ export default function ProjectDetailPage() {
                                 type="checkbox" 
                                 checked={task.status === 'completed'}
                                 onChange={(e) => {
-                                  const newStatus = e.target.checked ? 'completed' : 'pending';
-                                  handleTaskStatusChange(task.id, newStatus);
+                                  if (canAccessAdvancedFeatures) {
+                                    const newStatus = e.target.checked ? 'completed' : 'pending';
+                                    handleTaskStatusChange(task.id, newStatus);
+                                  }
                                 }}
-                                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600 cursor-pointer" 
+                                disabled={!canAccessAdvancedFeatures}
+                                className={`h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600 ${canAccessAdvancedFeatures ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`} 
                               />
                             </div>
                             <div className="flex-1">
@@ -743,14 +768,14 @@ export default function ProjectDetailPage() {
           )}
 
           {/* Analytics Tab */}
-          {activeTab === 'analytics' && (
+          {activeTab === 'analytics' && canAccessAdvancedFeatures && (
             <div>
               <OrganizationProjectsAnalytics />
             </div>
           )}
 
           {/* Workflows Tab */}
-          {activeTab === 'workflows' && (
+          {activeTab === 'workflows' && canAccessAdvancedFeatures && (
             <div>
               <ProjectWorkflowsPage />
             </div>

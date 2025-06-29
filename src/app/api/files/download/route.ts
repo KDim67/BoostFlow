@@ -34,11 +34,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Document not found' }, { status: 404 });
       }
       
-      // Check if user has permission to access this document's organization
+      // Check if user has permission to download documents (member or higher)
        const hasPermission = await hasOrganizationPermission(
          decodedToken.uid,
          document.organizationId,
-         'viewer'
+         'member'
        );
       
       if (!hasPermission) {

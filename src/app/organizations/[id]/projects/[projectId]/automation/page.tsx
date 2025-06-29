@@ -52,7 +52,8 @@ export default function ProjectWorkflowsPage() {
         const permission = await hasOrganizationPermission(user.uid, organizationId, 'member');
         
         if (!permission) {
-          setError('You do not have permission to access workflows features.');
+          setError('You do not have permission to access automation and workflow features.');
+          setIsLoading(false);
           return;
         }
 

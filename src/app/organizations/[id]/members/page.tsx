@@ -90,6 +90,13 @@ export default function OrganizationMembers() {
     e.preventDefault();
     if (!user || !inviteEmail || !organizationId) return;
     
+    // Validate that current user can assign the selected role
+    const availableRoles = getAvailableInviteRoles();
+    if (!availableRoles.includes(inviteRole)) {
+      setInviteError('You do not have permission to assign this role.');
+      return;
+    }
+    
     try {
       setIsInviting(true);
       setInviteError(null);
@@ -179,6 +186,19 @@ export default function OrganizationMembers() {
   const handleRemoveMember = async (membershipId: string) => {
     if (!user || !organizationId) return;
     
+    // Find the member being removed to check permissions
+    const memberToRemove = members.find(member => member.id === membershipId);
+    if (!memberToRemove) {
+      setError('Member not found.');
+      return;
+    }
+    
+    // Check if current user has permission to remove this member
+    if (!canRemoveMember(memberToRemove)) {
+      setError('You do not have permission to remove this member.');
+      return;
+    }
+    
     // Require explicit user confirmation for destructive action
     if (!confirm('Are you sure you want to remove this member from the organization?')) {
       return;
@@ -188,7 +208,7 @@ export default function OrganizationMembers() {
       setIsRemoving(membershipId); // Track which member is being removed for UI feedback
       setError(null);
       
-      await removeOrganizationMember(membershipId);
+      await removeOrganizationMember(membershipId, user.uid);
       
       // Refresh member list to remove the deleted member from UI
       const membersData = await getOrganizationMembers(organizationId);
@@ -228,7 +248,7 @@ export default function OrganizationMembers() {
       setError(null);
 
       // Remove the current user's membership
-      await removeOrganizationMember(currentUserMembership.id);
+      await removeOrganizationMember(currentUserMembership.id, user.uid);
 
       // Send notifications to remaining members about the departure
       try {
@@ -350,6 +370,60 @@ export default function OrganizationMembers() {
   };
 
   /**
+   * Determines if the current user can remove a specific member.
+   * Implements role hierarchy: owners can remove anyone except other owners,
+   * admins can remove members and viewers but not other admins,
+   * members and viewers cannot remove anyone.
+   */
+  const canRemoveMember = (member: OrganizationMembership) => {
+    const currentUserRole = getCurrentUserRole();
+    if (!currentUserRole || member.role === 'owner') return false;
+
+    // Users cannot remove themselves (use leave organization instead)
+    if (member.userId === user?.uid) return false;
+
+    // Owners can remove anyone except other owners
+    if (currentUserRole === 'owner') {
+      return true;
+    }
+
+    // Admins can remove members and viewers, but not other admins
+    if (currentUserRole === 'admin') {
+      return member.role !== 'admin';
+    }
+
+    // Members and viewers cannot remove anyone
+    return false;
+  };
+
+  /**
+   * Determines if the current user can invite new members.
+   * Only owners and admins can invite members.
+   */
+  const canInviteMembers = () => {
+    const currentUserRole = getCurrentUserRole();
+    return currentUserRole === 'owner' || currentUserRole === 'admin';
+  };
+
+  /**
+   * Gets available roles that the current user can assign when inviting.
+   * Owners can assign any role except owner, admins can only assign member and viewer roles.
+   */
+  const getAvailableInviteRoles = () => {
+    const currentUserRole = getCurrentUserRole();
+    
+    if (currentUserRole === 'owner') {
+      return ['admin', 'member', 'viewer'];
+    }
+    
+    if (currentUserRole === 'admin') {
+      return ['member', 'viewer'];
+    }
+    
+    return [];
+  };
+
+  /**
    * Assigns numeric ranks to roles for sorting purposes.
    * Lower numbers indicate higher authority in the organization hierarchy.
    */
@@ -418,12 +492,25 @@ export default function OrganizationMembers() {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
         <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Members ({members.length})</h2>
-          <button
-            onClick={() => setShowInviteForm(!showInviteForm)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-          >
-            {showInviteForm ? 'Cancel' : 'Invite Member'}
-          </button>
+          {canInviteMembers() && (
+            <button
+              onClick={() => {
+                if (!showInviteForm) {
+                  // Reset form and set default role based on current user's permissions
+                  const availableRoles = getAvailableInviteRoles();
+                  if (availableRoles.length > 0) {
+                    setInviteRole(availableRoles.includes('member') ? 'member' : availableRoles[0] as 'admin' | 'member' | 'viewer');
+                  }
+                  setInviteEmail('');
+                  setInviteError(null);
+                }
+                setShowInviteForm(!showInviteForm);
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              {showInviteForm ? 'Cancel' : 'Invite Member'}
+            </button>
+          )}
         </div>
 
         {showInviteForm && (
@@ -459,9 +546,11 @@ export default function OrganizationMembers() {
                     onChange={(e) => setInviteRole(e.target.value as 'admin' | 'member' | 'viewer')}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
                   >
-                    <option value="admin">Admin</option>
-                    <option value="member">Member</option>
-                    <option value="viewer">Viewer</option>
+                    {getAvailableInviteRoles().map(role => (
+                      <option key={role} value={role}>
+                        {role.charAt(0).toUpperCase() + role.slice(1)}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -600,7 +689,7 @@ export default function OrganizationMembers() {
                               {isLeaving ? 'Leaving...' : 'Leave Organization'}
                             </button>
                           )}
-                          {member.role !== 'owner' && member.userId !== user?.uid && (
+                          {canRemoveMember(member) && (
                             <button
                               onClick={() => handleRemoveMember(member.id)}
                               disabled={isRemoving === member.id}
@@ -658,7 +747,21 @@ export default function OrganizationMembers() {
                 <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
               </tr>
               <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Upload project documents</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Upload/download documents</td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
+              </tr>
+              <tr>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Add/edit tasks</td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
+                <td className="px-6 py-4 whitespace-nowrap text-center"><XIcon /></td>
+              </tr>
+              <tr>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">Access analytics</td>
                 <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
                 <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>
                 <td className="px-6 py-4 whitespace-nowrap text-center"><CheckIcon /></td>

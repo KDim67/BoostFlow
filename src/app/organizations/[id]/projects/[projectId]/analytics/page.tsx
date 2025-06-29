@@ -110,6 +110,19 @@ export default function ProjectAnalyticsPage() {
       if (!user || !organizationId) return;
       
       try {
+        // Check if user has permission to access analytics (member or higher)
+        const canAccessAnalytics = await hasOrganizationPermission(
+          user.uid,
+          organizationId,
+          'member' as OrganizationRole
+        );
+        
+        if (!canAccessAnalytics) {
+          setError('You do not have permission to access analytics features.');
+          setIsLoading(false);
+          return;
+        }
+        
         // Verify if user has admin privileges for AI insights and advanced features
         const isOwnerOrAdmin = await hasOrganizationPermission(
           user.uid,
@@ -119,6 +132,8 @@ export default function ProjectAnalyticsPage() {
         setHasAdminAccess(isOwnerOrAdmin);
       } catch (error) {
         console.error('Error checking permissions:', error);
+        setError('Failed to verify permissions.');
+        setIsLoading(false);
       }
     };
 

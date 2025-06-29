@@ -65,6 +65,7 @@ export default function OrganizationProjectsTasks() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null); // Controls which task dropdown is open
+  const [canManageTasks, setCanManageTasks] = useState(false);
   
   // Authentication context
   const { user } = useAuth();
@@ -95,6 +96,10 @@ export default function OrganizationProjectsTasks() {
           setIsLoading(false);
           return;
         }
+        
+        // Check if user has permission to add/edit tasks (member or higher)
+        const canManageTasks = await hasOrganizationPermission(user.uid, organizationId, 'member');
+        setCanManageTasks(canManageTasks);
         
         // Fetch organization details for context
         const orgData = await getOrganization(organizationId);
@@ -176,15 +181,17 @@ export default function OrganizationProjectsTasks() {
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-medium text-gray-900 dark:text-white">All Tasks</h3>
-            <button 
-              onClick={() => setIsModalOpen(true)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all flex items-center"
-            >
-              <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              New Task
-            </button>
+            {canManageTasks && (
+              <button 
+                onClick={() => setIsModalOpen(true)}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all flex items-center"
+              >
+                <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                New Task
+              </button>
+            )}
           </div>
         </div>
 
@@ -194,16 +201,18 @@ export default function OrganizationProjectsTasks() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No tasks yet</h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">Create your first task to get started</p>
-            <button 
-              onClick={() => setIsModalOpen(true)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all inline-flex items-center"
-            >
-              <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Create Task
-            </button>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">{canManageTasks ? 'Create your first task to get started' : 'No tasks have been created for this project'}</p>
+            {canManageTasks && (
+              <button 
+                onClick={() => setIsModalOpen(true)}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all inline-flex items-center"
+              >
+                <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Create Task
+              </button>
+            )}
           </div>
         ) : (
           <ul className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -211,11 +220,13 @@ export default function OrganizationProjectsTasks() {
               <li key={task.id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-900/20 transition-colors">
                 <div className="flex items-start">
                   <div className="flex-shrink-0 pt-1">
-                    {/* Task completion checkbox with updates */}
+                    {/* Task completion checkbox with updates - only editable for users with manage permissions */}
                     <input 
                       type="checkbox" 
                       checked={task.status === 'completed'}
+                      disabled={!canManageTasks}
                       onChange={async () => {
+                        if (!canManageTasks) return;
                         try {
                           // Toggle between completed and pending states
                           const newStatus = task.status === 'completed' ? 'pending' : 'completed';
@@ -244,7 +255,7 @@ export default function OrganizationProjectsTasks() {
                           console.error('Error updating task status:', error);
                         }
                       }}
-                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600" 
+                      className={`h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 dark:bg-gray-700 dark:border-gray-600 ${!canManageTasks ? 'opacity-50 cursor-not-allowed' : ''}`} 
                     />
                   </div>
                   <div className="ml-3 flex-1">
@@ -254,18 +265,19 @@ export default function OrganizationProjectsTasks() {
                       </div>
                       <div className="flex items-center space-x-2">
                         <Badge type="priority" value={task.priority} variant="with-icon" size="md" />
-                        {/* Task actions dropdown menu */}
-                        <div className="relative">
-                          <button
-                            onClick={() => setOpenDropdownId(openDropdownId === task.id ? null : task.id)}
-                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                          >
-                            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                            </svg>
-                          </button>
-                          {/* Dropdown menu */}
-                          {openDropdownId === task.id && (
+                        {/* Task actions dropdown menu - only for users with manage permissions */}
+                        {canManageTasks && (
+                          <div className="relative">
+                            <button
+                              onClick={() => setOpenDropdownId(openDropdownId === task.id ? null : task.id)}
+                              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            >
+                              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                              </svg>
+                            </button>
+                            {/* Dropdown menu */}
+                            {openDropdownId === task.id && (
                             <div className="absolute right-0 mt-1 w-32 bg-white dark:bg-gray-700 rounded-md shadow-lg z-10 border border-gray-200 dark:border-gray-600">
                               {/* Edit task option */}
                               <button
@@ -303,7 +315,8 @@ export default function OrganizationProjectsTasks() {
                               </button>
                             </div>
                           )}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{task.description}</p>
