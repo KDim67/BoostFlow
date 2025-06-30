@@ -1,0 +1,109 @@
+pipeline {
+    agent any
+
+    parameters {
+        booleanParam(name: 'NEXTJS_ONLY', defaultValue: true, description: 'Deploy only NextJS app (faster)')
+        booleanParam(name: 'FULL_DEPLOYMENT', defaultValue: false, description: 'Full deployment including MinIO')
+        booleanParam(name: 'SKIP_DOCKER_BUILD', defaultValue: false, description: 'Skip Docker build (use existing image)')
+    }
+
+    environment {
+        DOCKER_TOKEN = credentials('docker-push-secret')
+        DOCKER_USER = 'nikosd767'
+        DOCKER_SERVER = 'ghcr.io'
+        DOCKER_PREFIX = 'ghcr.io/nikosd767/boostflow'
+        ANSIBLE_CONFIG = '~/workspace/ansible/ansible/ansible.cfg'
+    }
+
+    stages {
+        stage('Fast NextJS Deployment') {
+            when {
+                expression { params.NEXTJS_ONLY == true }
+            }
+            parallel {
+                stage('Docker Build & Push') {
+                    when {
+                        expression { params.SKIP_DOCKER_BUILD == false }
+                    }
+                    steps {
+                        sh '''
+                            HEAD_COMMIT=$(git rev-parse --short HEAD)
+                            TAG=$HEAD_COMMIT-$BUILD_ID
+                            
+                            # Build only NextJS image (faster)
+                            docker build --rm -t $DOCKER_PREFIX:$TAG -t $DOCKER_PREFIX:latest -f Dockerfile .
+                            
+                            # Push to registry
+                            echo $DOCKER_TOKEN | docker login $DOCKER_SERVER -u $DOCKER_USER --password-stdin
+                            docker push $DOCKER_PREFIX:$TAG
+                            docker push $DOCKER_PREFIX:latest
+                        '''
+                    }
+                }
+                
+                stage('Deploy to Production VM') {
+                    steps {
+                        sh '''
+                            # Deploy only to vag-prod-vm (NextJS + NGINX)
+                            ansible-playbook -i ~/workspace/ansible/ansible/inventories/hosts.yaml \
+                                ~/workspace/ansible/ansible/playbooks/deployments/deploy_nextjs_only.yaml \
+                                --limit vag-prod-vm \
+                                -e "docker_action=start" \
+                                -v
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Full Deployment') {
+            when {
+                expression { params.FULL_DEPLOYMENT == true }
+            }
+            steps {
+                sh '''
+                    HEAD_COMMIT=$(git rev-parse --short HEAD)
+                    TAG=$HEAD_COMMIT-$BUILD_ID
+                    
+                    # Full deployment including MinIO
+                    ansible-playbook -i ~/workspace/ansible/ansible/inventories/hosts.yaml \
+                        ~/workspace/ansible/ansible/playbooks/deployments/deploy_all.yaml \
+                        -e "new_image=$DOCKER_PREFIX:$TAG" \
+                        -v
+                '''
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                sh '''
+                    # Test NextJS application
+                    curl -f http://20.91.245.158:3000/api/health || echo "Health check failed"
+                    
+                    # Test NGINX proxy
+                    curl -f http://20.91.245.158/ || echo "NGINX proxy check failed"
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Deployment completed successfully!"
+            echo "NextJS App: http://20.91.245.158:3000"
+            echo "Production URL: https://boostflow.me"
+            script {
+                if (params.NEXTJS_ONLY) {
+                    echo "Fast deployment completed - MinIO on vag-minio-vm was not affected"
+                }
+            }
+        }
+        failure {
+            echo "Deployment failed. Check logs for details."
+        }
+        always {
+            // Clean up Docker images to save space
+            sh 'docker image prune -f || true'
+        }
+    }
+}
