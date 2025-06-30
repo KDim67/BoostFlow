@@ -1,0 +1,93 @@
+pipeline {
+    agent any
+
+    // Webhook trigger for instant deployment + polling as backup
+    triggers {
+        // GitHub webhook for instant deployment
+        githubPush()
+        // Backup polling every 5 minutes in case webhook fails or system was offline
+        pollSCM('H/5 * * * *')
+    }
+
+    environment {
+        ANSIBLE_CONFIG = '~/workspace/ansible-boostflow/ansible/ansible.cfg'
+    }
+
+    stages {
+        stage('Check for Changes') {
+            steps {
+                script {
+                    // Get current commit info
+                    def currentCommit = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+                    def lastDeployedCommit = ""
+                    
+                    // Try to read last deployed commit from file
+                    try {
+                        lastDeployedCommit = readFile('/tmp/last_deployed_commit.txt').trim()
+                    } catch (Exception e) {
+                        echo "No previous deployment record found - proceeding with deployment"
+                        lastDeployedCommit = "none"
+                    }
+                    
+                    echo "Current commit: ${currentCommit}"
+                    echo "Last deployed: ${lastDeployedCommit}"
+                    
+                    if (currentCommit == lastDeployedCommit) {
+                        echo "No new changes detected - skipping deployment"
+                        currentBuild.result = 'NOT_BUILT'
+                        return
+                    }
+                    
+                    // Store current commit for next comparison
+                    writeFile file: '/tmp/last_deployed_commit.txt', text: currentCommit
+                }
+            }
+        }
+
+        stage('Deploy on Fast Branch') {
+            when {
+                anyOf {
+                    branch 'fast'
+                    expression { env.GIT_BRANCH?.contains('fast') }
+                }
+            }
+            steps {
+                script {
+                    def commitMsg = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+                    echo "Deploying NextJS from fast branch..."
+                    echo "Commit message: ${commitMsg}"
+                    
+                    sh """
+                        cd ~/workspace/ansible-boostflow
+                        git pull origin main || echo "Using existing playbooks"
+                        
+                        ansible-playbook -i ansible/inventories/hosts.yaml \
+                            ansible/playbooks/deployments/deploy_nextjs_only.yaml \
+                            --limit vag-prod-vm \
+                            -e "deployment_env=production" \
+                            -e "branch=fast" \
+                            -e "docker_action=restart"
+                    """
+                    
+                    echo "Deployment completed!"
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                def commitHash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                echo "NextJS deployed successfully to https://boostflow.me"
+                echo "Deployed commit: ${commitHash}"
+            }
+        }
+        failure {
+            echo "Deployment failed - check logs"
+        }
+        not_built {
+            echo "No deployment needed - no new changes"
+        }
+    }
+}

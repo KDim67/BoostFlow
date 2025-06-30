@@ -1,12 +1,58 @@
 import { Client } from 'minio';
 
-const minioClient = new Client({
-  endPoint: process.env.MINIO_ENDPOINT?.split(':')[0] || 'localhost',
-  port: parseInt(process.env.MINIO_ENDPOINT?.split(':')[1] || '9000'),
+/**
+ * MinIO Client Configuration for 3-VM Architecture:
+ * - VM1 (20.91.227.216): Jenkins + Ansible Controller
+ * - VM2 (4.223.113.211): NextJS Application + Nginx
+ * - VM3 (4.223.116.59): MinIO Storage Server
+ * 
+ * This client connects from VM2 (app server) to VM3 (MinIO server)
+ * External access is routed through https://minio.boostflow.me
+ */
+
+// Parse MinIO endpoint from environment
+const parseMinioEndpoint = () => {
+  const endpoint = process.env.MINIO_ENDPOINT;
+  
+  if (!endpoint) {
+    throw new Error('MINIO_ENDPOINT environment variable is required.');
+  }
+  
+  // Remove protocol if present
+  const cleanEndpoint = endpoint.replace(/^https?:\/\//, '');
+  const [host, portStr] = cleanEndpoint.split(':');
+  const port = parseInt(portStr || '9000');
+  
+  return { host, port };
+};
+
+const { host: minioHost, port: minioPort } = parseMinioEndpoint();
+
+// Get MinIO credentials from environment variables
+const getMinioCredentials = () => {
+  const accessKey = process.env.MINIO_ROOT_USER || process.env.MINIO_ACCESS_KEY;
+  const secretKey = process.env.MINIO_ROOT_PASSWORD || process.env.MINIO_SECRET_KEY;
+  
+  if (!accessKey || !secretKey) {
+    throw new Error('MinIO credentials not found in environment variables. Please check MINIO_ROOT_USER/MINIO_ROOT_PASSWORD or MINIO_ACCESS_KEY/MINIO_SECRET_KEY in .env.local');
+  }
+  
+  return { accessKey, secretKey };
+};
+
+const { accessKey: minioAccessKey, secretKey: minioSecretKey } = getMinioCredentials();
+
+// Always use internal endpoint for API operations (server-to-server communication)
+// External endpoint is only used for generating browser-accessible URLs
+const clientConfig = {
+  endPoint: minioHost,
+  port: minioPort,
   useSSL: false,
-  accessKey: process.env.MINIO_ROOT_USER || 'minioadmin',
-  secretKey: process.env.MINIO_ROOT_PASSWORD || 'minioadmin',
-});
+  accessKey: minioAccessKey,
+  secretKey: minioSecretKey,
+};
+
+const minioClient = new Client(clientConfig);
 
 // Bucket names
 export const BUCKETS = {
@@ -15,9 +61,37 @@ export const BUCKETS = {
   PROJECT_DOCUMENTS: 'project-documents',
 } as const;
 
+// Test MinIO connection
+export async function testMinioConnection(): Promise<boolean> {
+  try {
+    console.log(`Testing MinIO connection to ${clientConfig.endPoint}:${clientConfig.port} (SSL: ${clientConfig.useSSL})`);
+    console.log(`Using access key: ${minioAccessKey}`);
+    
+    // Try to list buckets as a connection test
+    await minioClient.listBuckets();
+    console.log('MinIO connection successful');
+    return true;
+  } catch (error) {
+    console.error('MinIO connection failed:', error);
+    console.error('MinIO config:', {
+      endPoint: clientConfig.endPoint,
+      port: clientConfig.port,
+      useSSL: clientConfig.useSSL,
+      accessKey: minioAccessKey
+    });
+    return false;
+  }
+}
+
 // Initialize buckets
 export async function initializeBuckets() {
   try {
+    // Test connection first
+    const connectionOk = await testMinioConnection();
+    if (!connectionOk) {
+      throw new Error('Failed to connect to MinIO server');
+    }
+
     for (const bucketName of Object.values(BUCKETS)) {
       const exists = await minioClient.bucketExists(bucketName);
       if (!exists) {
@@ -44,6 +118,7 @@ export async function initializeBuckets() {
     }
   } catch (error) {
     console.error('Error initializing MinIO buckets:', error);
+    throw error; // Re-throw to let the calling function handle it
   }
 }
 
@@ -75,23 +150,43 @@ export async function uploadFile(
   contentType: string
 ): Promise<string> {
   try {
+    console.log(`Uploading file to MinIO: bucket=${bucketName}, fileName=${fileName}, size=${fileBuffer.length}`);
+    
     await minioClient.putObject(bucketName, fileName, fileBuffer, fileBuffer.length, {
       'Content-Type': contentType,
     });
     
+    console.log(`File uploaded successfully: ${fileName}`);
+    
     // Return the file URL using external endpoint for browser access
-    const externalEndpoint = process.env.MINIO_EXTERNAL_ENDPOINT || process.env.MINIO_ENDPOINT || 'localhost:9000';
+    const externalEndpoint = process.env.MINIO_EXTERNAL_ENDPOINT || process.env.MINIO_ENDPOINT;
+    
+    if (!externalEndpoint) {
+      throw new Error('MINIO_EXTERNAL_ENDPOINT or MINIO_ENDPOINT environment variable is required for URL generation.');
+    }
     
     // If external endpoint already includes protocol, use it as is
     if (externalEndpoint.startsWith('http://') || externalEndpoint.startsWith('https://')) {
       return `${externalEndpoint}/${bucketName}/${fileName}`;
     }
     
-    // Otherwise, add http protocol for backward compatibility
-    return `http://${externalEndpoint}/${bucketName}/${fileName}`;
+    // For production with domain names, use HTTPS; otherwise use HTTP
+    const protocol = externalEndpoint.includes('.') && !externalEndpoint.includes('localhost') ? 'https://' : 'http://';
+    return `${protocol}${externalEndpoint}/${bucketName}/${fileName}`;
   } catch (error) {
-    console.error('Error uploading file to MinIO:', error);
-    throw new Error('Failed to upload file');
+    console.error('Error uploading file to MinIO:', {
+      error: error,
+      bucketName,
+      fileName,
+      fileSize: fileBuffer.length,
+      contentType,
+      minioConfig: {
+        endPoint: clientConfig.endPoint,
+        port: clientConfig.port,
+        useSSL: clientConfig.useSSL
+      }
+    });
+    throw new Error(`Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -137,17 +232,15 @@ export async function getPresignedUrl(
         endPoint,
         port,
         useSSL,
-        accessKey: process.env.MINIO_ROOT_USER || 'minioadmin',
-        secretKey: process.env.MINIO_ROOT_PASSWORD || 'minioadmin',
+        accessKey: minioAccessKey,
+        secretKey: minioSecretKey,
       });
       
       const presignedUrl = await externalClient.presignedGetObject(bucketName, fileName, expiry);
       
-      // Add /minio/ prefix to the path for nginx proxy routing
-      const url = new URL(presignedUrl);
-      url.pathname = '/minio' + url.pathname;
-      
-      return url.toString();
+      // For the HTTPS nginx configuration, the S3 API is at the root path
+      // No prefix modification needed as the root path routes to MinIO S3 API
+      return presignedUrl;
     } else {
       // For local development, use the original client
       const presignedUrl = await minioClient.presignedGetObject(bucketName, fileName, expiry);
