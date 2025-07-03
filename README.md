@@ -1,7 +1,7 @@
 # BoostFlow
 
 <div align="center">
-  <img src="public/harokopioXboostflow.png" alt="BoostFlow Logo" />
+  <img src="public/harokopioXboostflow.png" alt="BoostFlow Logo test" />
 </div>
 
 BoostFlow is an AI-powered productivity platform designed to help teams automate repetitive tasks, manage projects efficiently, and enhance collaboration across organizations of all sizes.

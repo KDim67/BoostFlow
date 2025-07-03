@@ -1,32 +1,24 @@
+version: '3.8'
+
 services:
   nextjs:
     build:
       context: .
       dockerfile: Dockerfile
+      target: runner
+      cache_from:
+        - boostflow:latest
+        - boostflow:deps
+        - boostflow:builder
+    image: boostflow:latest
     container_name: boostflow-nextjs
-    restart: always
+    restart: unless-stopped
     env_file:
       - .env.local
     ports:
       - "3000:3000"
-
     volumes:
       - ./uploads:/app/uploads
-    networks:
-      - nextjs-network
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  mailhog:
-    image: mailhog/mailhog:latest
-    container_name: boostflow-mailhog
-    restart: always
-    ports:
-      - "1025:1025"  # SMTP port
-      - "8025:8025"  # Web UI port
     networks:
       - nextjs-network
 

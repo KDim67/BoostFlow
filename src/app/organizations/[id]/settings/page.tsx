@@ -572,13 +572,6 @@ export default function OrganizationSettings() {
                           />
                           <div>
                             <p className="text-sm text-gray-600 dark:text-gray-400">Current logo</p>
-                            <button
-                              type="button"
-                              onClick={() => setFormData(prev => ({ ...prev, logoUrl: '' }))}
-                              className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                            >
-                              Remove logo
-                            </button>
                           </div>
                         </div>
                       )}
