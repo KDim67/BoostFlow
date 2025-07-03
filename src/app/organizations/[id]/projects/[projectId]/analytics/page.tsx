@@ -224,20 +224,41 @@ export default function ProjectAnalyticsPage() {
         // Calculate team member count with fallback strategies
         let teamMembersCount = 0;
         try {
-          // First attempt: query dedicated projectMembers collection
-          const projectMembers = await queryDocuments('projectMembers', [
-            where('projectId', '==', projectId)
+          // First attempt: query team collection (where team members are actually stored)
+          const teamMembers = await queryDocuments('team', [
+            where('projectId', '==', projectId),
+            where('organizationId', '==', organizationId)
           ]);
-          teamMembersCount = projectMembers.length;
+          teamMembersCount = teamMembers.length;
           
-          // Fallback: use project.members array if no dedicated records found
+          // Second attempt: if no team members found, check for task assignees
+          if (teamMembersCount === 0) {
+            const uniqueAssignees = new Set();
+            taskAnalytics.forEach(task => {
+              if (task.assignee && task.assignee !== 'Unassigned') {
+                uniqueAssignees.add(task.assignee);
+              }
+            });
+            teamMembersCount = uniqueAssignees.size;
+          }
+          
+          // Final fallback: use project.members array if no team members found
           if (teamMembersCount === 0 && project?.members) {
             teamMembersCount = Array.isArray(project.members) ? project.members.length : 0;
           }
         } catch (error) {
           console.error('Error fetching team members:', error);
-          // Final fallback: use project.members array on error
-          if (project?.members) {
+          // Fallback: count unique assignees from tasks
+          const uniqueAssignees = new Set();
+          taskAnalytics.forEach(task => {
+            if (task.assignee && task.assignee !== 'Unassigned') {
+              uniqueAssignees.add(task.assignee);
+            }
+          });
+          teamMembersCount = uniqueAssignees.size;
+          
+          // If still no team members, use project.members array
+          if (teamMembersCount === 0 && project?.members) {
             teamMembersCount = Array.isArray(project.members) ? project.members.length : 0;
           }
         }

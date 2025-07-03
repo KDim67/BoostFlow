@@ -40,6 +40,18 @@ export async function POST(request: NextRequest) {
   try {
     // Extract project data from request body
     const { projectId, projectName, metrics, tasks, timeframe } = await request.json();
+    
+    // Fix for teamMembers count if it's showing 0 despite having assigned team members
+    if (metrics.teamMembers === 0 && tasks.some(task => task.assignee && task.assignee !== 'Unassigned')) {
+      // Count unique assignees from tasks as team members
+      const uniqueAssignees = new Set();
+      tasks.forEach(task => {
+        if (task.assignee && task.assignee !== 'Unassigned') {
+          uniqueAssignees.add(task.assignee);
+        }
+      });
+      metrics.teamMembers = uniqueAssignees.size;
+    }
 
     // Validate Gemini API key configuration
     const apiKey = process.env.GEMINI_API_KEY;
