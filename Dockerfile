@@ -19,7 +19,6 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies (including dev deps needed for build)
-RUN npm install
 
 RUN npm ci
 

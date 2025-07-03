@@ -15,6 +15,31 @@ build
 .env*
 !.env.local
 
+# Development files
+.eslintrc*
+.prettierrc*
+.editorconfig
+
+# CI/CD files
+Jenkinsfile*
+.github
+.gitlab-ci.yml
+
+# Docker files (except Dockerfile)
+docker-compose*
+*.dockerfile
+
+# Uploads and temporary files
+uploads
+temp
+tmp
+
+# Test files
+__tests__
+*.test.*
+*.spec.*
+test-*
+
 # IDE and editor files
 .idea
 .vscode
