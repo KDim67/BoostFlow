@@ -10,7 +10,7 @@ export default function Home() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-12">
             <div className="md:w-1/2 space-y-6">
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight">
-                <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Automate</span> Your Workflow with AI
+                <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Automate</span> Your Team's Workflow with AI
               </h1>
               <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300">
                 BoostFlow helps teams automate repetitive tasks, manage projects efficiently, and enhance collaboration with AI-powered tools.
